@@ -1,0 +1,5 @@
+// Finance Project Changelog // 
+
+6/17/22: Created script that reads and does basic cleaning on GW data, included a couple basic plots that chart index returns over the entire period
+6/17/22: [Not Uploaded] Successfully replicated Goyal-Welch using the code based here: https://christophj.github.io/replicating/r/replicating-goyal-welch-2008/
+          Used updated Goyal-Welch data and adapted the code slightly to work with the current RStudio version. 
