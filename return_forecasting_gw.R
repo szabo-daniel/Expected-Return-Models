@@ -58,7 +58,7 @@ annual <- annual[, logretdiv := vec_logretdiv]
 annual <- annual[, logRfree := log(Rfree + 1)] 
 
 #Log Equity Premium
-annual <- annual[, rp_div   := logretdiv - logRfree]
+annual <- annual[, rp_div := logretdiv - logRfree]
 
 #Time Series
 ts_annual <- ts(annual, start=annual[1, yyyy], end=annual[nrow(annual), yyyy])
@@ -149,55 +149,76 @@ get_statistics <- function(ts_df, indep, dep, h=1, start=1872, end=2021, est_per
   
 }
 ###############################################################################
-#Plots 
-
+#Get Stats of each variable 
+{
 dp_stat <- get_statistics(ts_annual, "dp", "rp_div", start=1872)
-dp_stat$plotGG + ggtitle("Dividend-Price Ratio (dp)")
-
 dy_stat <- get_statistics(ts_annual, "dy", "rp_div", start=1872)
-dy_stat$plotGG + ggtitle("Dividend Yield (dy)")
-
 ep_stat <- get_statistics(ts_annual, "ep", "rp_div", start=1872)
-ep_stat$plotGG + ggtitle("Earnings Price Ratio (ep)")
-
 de_stat <- get_statistics(ts_annual, "de", "rp_div", start=1872)
-de_stat$plotGG + ggtitle("Dividend Payout Ratio (dp)")
-
 dfy_stat <- get_statistics(ts_annual, "dfy", "rp_div", start = 1919)
-dfy_stat$plotGG + ggtitle("Default Yield Spread (dfy)")
-
 dfr_stat <- get_statistics(ts_annual, "dfr", "rp_div", start=1926)
-dfr_stat$plotGG + ggtitle("Default return spread (dfr)")
-
 eqis_stat <- get_statistics(ts_annual, "eqis", "rp_div", start=1927)
-eqis_stat$plotGG + ggtitle("Percent Equity Issuing")
-
 infl_stat <- get_statistics(ts_annual, "infl", "rp_div", start=1919)
-infl_stat$plotGG + ggtitle("Inflation")
-
 ik_stat <- get_statistics(ts_annual, "ik", "rp_div", start=1947)
-ik_stat$plotGG + ggtitle("Investment-Capital Ratio")
-
 lty_stat <- get_statistics(ts_annual, "lty", "rp_div", start=1919)
-lty_stat$plotGG + ggtitle("Long-Term Yield")
-
 ltr_stat <- get_statistics(ts_annual, "ltr", "rp_div", start=1926)
-ltr_stat$plotGG + ggtitle("Long-Term Return")
-
 svar_stat <- get_statistics(ts_annual, "svar", "rp_div", start = 1885)
-svar_stat$plotGG + ggtitle("Stock variance") #still needs work
-
 bm_stat <- get_statistics(ts_annual, "b.m", "rp_div", start = 1921)
-bm_stat$plotGG + ggtitle("Book to Market ratio")
- 
 tbl_stat <- get_statistics(ts_annual, "tbl", "rp_div", start=1920)
-tbl_stat$plotGG + ggtitle("Treasury Bill Rate")
-
 tms_stat <- get_statistics(ts_annual, "tms", "rp_div", start = 1920)
-tms_stat$plotGG + ggtitle("Term spread")
-
 ntis_stat <- get_statistics(ts_annual, "ntis", "rp_div", start=1927)
+}
+#Plots
 ntis_stat$plotGG + ggtitle("Net Equity Expansion")
+dp_stat$plotGG + ggtitle("Dividend-Price Ratio (dp)")
+dy_stat$plotGG + ggtitle("Dividend Yield (dy)")
+ep_stat$plotGG + ggtitle("Earnings Price Ratio (ep)")
+de_stat$plotGG + ggtitle("Dividend Payout Ratio (dp)")
+dfy_stat$plotGG + ggtitle("Default Yield Spread (dfy)")
+dfr_stat$plotGG + ggtitle("Default return spread (dfr)")
+eqis_stat$plotGG + ggtitle("Percent Equity Issuing")
+infl_stat$plotGG + ggtitle("Inflation")
+ik_stat$plotGG + ggtitle("Investment-Capital Ratio")
+lty_stat$plotGG + ggtitle("Long-Term Yield")
+ltr_stat$plotGG + ggtitle("Long-Term Return")
+svar_stat$plotGG + ggtitle("Stock variance") #still needs work
+bm_stat$plotGG + ggtitle("Book to Market ratio")
+tbl_stat$plotGG + ggtitle("Treasury Bill Rate")
+tms_stat$plotGG + ggtitle("Term spread")
+###############################################################################
+#Stats Table
+{
+Variable <- c("dfy", "infl", "svar", "d/e", "lty", "tms", "tbl", "dfr", "d/p", 
+              "d/y", "ltr", "e/p", "b/m", "i/k", "ntis", "eqis")
+
+IS_R2 <- c(dfy_stat$IS_aR2, infl_stat$IS_aR2, svar_stat$IS_aR2,
+               de_stat$IS_aR2, lty_stat$IS_aR2, tms_stat$IS_aR2,
+               tbl_stat$IS_aR2, dfr_stat$IS_aR2, dp_stat$IS_aR2,
+               dy_stat$IS_aR2, ltr_stat$IS_aR2, ep_stat$IS_aR2,
+               bm_stat$IS_aR2, ik_stat$IS_aR2, ntis_stat$IS_aR2,
+               eqis_stat$IS_aR2)
+IS_R2 <- round(IS_R2*100, 2)
+
+OS_R2 <- c(dfy_stat$OOS_oR2, infl_stat$OOS_oR2, svar_stat$OOS_oR2,
+           de_stat$OOS_oR2, lty_stat$OOS_oR2, tms_stat$OOS_oR2,
+           tbl_stat$OOS_oR2, dfr_stat$OOS_oR2, dp_stat$OOS_oR2,
+           dy_stat$OOS_oR2, ltr_stat$OOS_oR2, ep_stat$OOS_oR2,
+           bm_stat$OOS_oR2, ik_stat$OOS_oR2, ntis_stat$OOS_oR2,
+           eqis_stat$OOS_oR2)
+OS_R2 <- round(OS_R2*100, 2)
+
+dRMSE <- c(dfy_stat$dRMSE, infl_stat$dRMSE, svar_stat$dRMSE,
+           de_stat$dRMSE, lty_stat$dRMSE, tms_stat$dRMSE,
+           tbl_stat$dRMSE, dfr_stat$dRMSE, dp_stat$dRMSE,
+           dy_stat$dRMSE, ltr_stat$dRMSE, ep_stat$dRMSE,
+           bm_stat$dRMSE, ik_stat$dRMSE, ntis_stat$dRMSE,
+           eqis_stat$dRMSE)
+dRMSE <- round(dRMSE*100, 2)
+
+gw_table <- as.data.frame(cbind(Variable, IS_R2, OS_R2, dRMSE), row.names=F)
+}
+#Table including both IS and OS R2, as well as change in RMSE
+print(gw_table)
 
 ###############################################################################
 #Subset data into training and test - use later
