@@ -21,7 +21,7 @@ annual <- as.data.table(annual)
 annual$Index <- as.numeric(gsub(",","",annual$Index))
 
 ################################################################################
-#Calculate/Transform annual variables to conform with Goyal-Welch data (from christophj.github.io)
+#Calculate/Transform annual variables to conform with Goyal-Welch data (based on christophj.github.io)
 
 {
 #Continuously compounded index returns + 12 month moving sum of dividends
@@ -61,30 +61,34 @@ annual <- annual[, logRfree := log(Rfree + 1)]
 annual <- annual[, rp_div := logretdiv - logRfree]
 
 #Time Series
-ts_annual <- ts(annual, start=annual[1, yyyy], end=annual[nrow(annual), yyyy])
+#ts_annual <- ts(annual, start=annual[1, yyyy], end=annual[nrow(annual), yyyy])
+ts_annual <- ts(annual, start = 1871, end = 2021, frequency = 1)
 }
 
 plot(ts_annual[, c("rp_div", "dp", "dy")])
 
 ################################################################################
 #Statistics function (christophj.github.io)
+#ts_df: time series data frame, indep: independent variable, dep: dependent variable (rp_div in this analysis),
+#start: start date, end: end date, est_periods_OOS: OOS periods used
 
 get_statistics <- function(ts_df, indep, dep, h=1, start=1872, end=2021, est_periods_OOS = 20) {
   
-  #### IS ANALYSIS
+  #In-Sample Analysis
   
   #1. Historical mean model
   avg   <- mean(window(ts_df, start, end)[, dep], na.rm=TRUE)
   IS_error_N <- (window(ts_df, start, end)[, dep] - avg)
   
-  #2. OLS model
+  #2. OLS model (Ordinary Least Squares regression)
   reg <- dyn$lm(eval(parse(text=dep)) ~ lag(eval(parse(text=indep)), -1), data=window(ts_df, start, end))
   IS_error_A <- reg$residuals
-  ### 
   
-  ####OOS ANALYSIS
-  OOS_error_N <- numeric(end - start - est_periods_OOS)
-  OOS_error_A <- numeric(end - start - est_periods_OOS)
+  #OOS Analysis 
+  
+  OOS_error_N <- numeric(end - start - est_periods_OOS) #Historical mean error
+  OOS_error_A <- numeric(end - start - est_periods_OOS) #OLS error
+  
   #Only use information that is available up to the time at which the forecast is made
   j <- 0
   for (i in (start + est_periods_OOS):(end-1)) {
@@ -124,6 +128,8 @@ get_statistics <- function(ts_df, indep, dep, h=1, start=1872, end=2021, est_per
                     OOS=OOS) #Because you lose one observation due to the lag
   #Shift IS errors vertically, so that the IS line begins 
   # at zero on the date of first OOS prediction. (see Goyal/Welch (2008, p. 1465))
+  
+  #Oil Shock overlay
   df$IS <- df$IS - df$IS[1] 
   df  <- melt(df, id.var="x") 
   plotGG <- ggplot(df) + 
@@ -149,7 +155,7 @@ get_statistics <- function(ts_df, indep, dep, h=1, start=1872, end=2021, est_per
   
 }
 ###############################################################################
-#Get Stats of each variable 
+#Get stats of each variable (IS, OOS errors for both models, IS, OOS R2, change in RMSE)
 {
 dp_stat <- get_statistics(ts_annual, "dp", "rp_div", start=1872)
 dy_stat <- get_statistics(ts_annual, "dy", "rp_div", start=1872)
@@ -168,7 +174,7 @@ tbl_stat <- get_statistics(ts_annual, "tbl", "rp_div", start=1920)
 tms_stat <- get_statistics(ts_annual, "tms", "rp_div", start = 1920)
 ntis_stat <- get_statistics(ts_annual, "ntis", "rp_div", start=1927)
 }
-#Plots
+#Plots - Cumulative SSE difference between IS/OOS of each variable
 ntis_stat$plotGG + ggtitle("Net Equity Expansion")
 dp_stat$plotGG + ggtitle("Dividend-Price Ratio (dp)")
 dy_stat$plotGG + ggtitle("Dividend Yield (dy)")
@@ -185,8 +191,9 @@ svar_stat$plotGG + ggtitle("Stock variance") #still needs work
 bm_stat$plotGG + ggtitle("Book to Market ratio")
 tbl_stat$plotGG + ggtitle("Treasury Bill Rate")
 tms_stat$plotGG + ggtitle("Term spread")
+
 ###############################################################################
-#Stats Table
+#Stats Table (IS, OOS R2 and change in RMSE for each variable - similar to GW tables)
 {
 Variable <- c("dfy", "infl", "svar", "d/e", "lty", "tms", "tbl", "dfr", "d/p", 
               "d/y", "ltr", "e/p", "b/m", "i/k", "ntis", "eqis")
@@ -221,44 +228,57 @@ gw_table <- as.data.frame(cbind(Variable, IS_R2, OS_R2, dRMSE), row.names=F)
 print(gw_table)
 
 ###############################################################################
+#Forecasting with different models
+
 #Subset data into training and test - use later
-train <- subset(ts_annual, start = 2, end = 120)
-test <- subset(ts_annual, start = 121, end = 151)
+#train <- subset(ts_annual, start = 2, end = 120)
+#test <- subset(ts_annual, start = 121, end = 151)
 
 #Models on annual data (basic for now just to familiarize myself with the syntax & graphs)
-an_rp_div <- ts(ts_annual[-1,"rp_div"])
+an_rp_div <- ts_annual[,"rp_div"]
+an_rp_div <- na.omit(an_rp_div)
+#Stationarity of TS test
+adf.test(an_rp_div) #p-val is < 0.01, series is stationary
+
+#Training set - years 1873 - 2010 (may adjust time-frame)
+train_rp_div <- subset(an_rp_div, start = 2, end = 139)
 
 #Naive Model
-fc_naive <- naive(an_rp_div, h = 5)
+fc_naive <- naive(train_rp_div, h = 11)
 summary(fc_naive)
-checkresiduals(fc_naive) #p-val: 4.227e-08 
+checkresiduals(fc_naive) #p-val: 2.013e-06
 autoplot(forecast(fc_naive))
+accuracy(fc_naive, an_rp_div)
 
 #Simple Exponential Smoothing
-fc_ses <- ses(an_rp_div, h = 5)
+fc_ses <- ses(train_rp_div, h = 11)
 summary(fc_ses)
-checkresiduals(fc_ses) #p-val: 0.0142
+checkresiduals(fc_ses) #p-val: 0.03578
 autoplot(forecast(fc_ses))
+accuracy(fc_ses, an_rp_div)
 
 #Holt Model
-fc_holt <- holt(an_rp_div, h = 5)
+fc_holt <- holt(train_rp_div, h = 11)
 summary(fc_holt)
-checkresiduals(fc_holt) #p-val: 0.0032
+checkresiduals(fc_holt) #p-val: 0.0121
 autoplot(forecast(fc_holt))
+accuracy(fc_holt, an_rp_div)
 
 #ARIMA Model
-fc_arima <- auto.arima(an_rp_div)
+fc_arima <- auto.arima(train_rp_div)
 summary(fc_arima)
-checkresiduals(fc_arima) #p-val: 0.2817
-autoplot(forecast(fc_arima, h = 10))
+checkresiduals(fc_arima) #p-val: 0.05718, ARIMA(0,0,0)
+autoplot(forecast(fc_arima, h = 11))
+accuracy(fc_arima, an_rp_div) #Doesn't work since auto.arima doesn't return a class type "forecast". Working on fix.
 
 #TBATS Model
-fc_tbats <- tbats(an_rp_div)
+fc_tbats <- tbats(train_rp_div)
 summary(fc_tbats)
-checkresiduals(fc_tbats) #p-val: 0.0108
-autoplot(forecast(fc_tbats, h = 5))
+checkresiduals(fc_tbats) #p-val: 0.03516
+autoplot(forecast(fc_tbats, h = 11))
+accuracy(fc_tbats, an_rp_div) #Doesn't work since tbats() returns a class type "bats". Working on fix
 
-adf.test(an_rp_div)
+
 
 
 
