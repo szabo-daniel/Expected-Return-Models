@@ -283,7 +283,6 @@ checkresiduals(fc_tbats) #p-val: 0.03516
 autoplot(forecast(fc_tbats, h = 11))
 accuracy(fc_tbats, an_rp_div) #Doesn't work since tbats() returns a class type "bats". Working on fix
 
-
-
+#
 
 
