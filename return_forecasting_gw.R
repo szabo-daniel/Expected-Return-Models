@@ -20,6 +20,9 @@ annual <- read.csv("PredictorData2021 - Annual.csv", na.strings = "NaN", strings
 annual <- as.data.table(annual)
 annual$Index <- as.numeric(gsub(",","",annual$Index))
 
+#Original 2005 data
+annual <- read_xls("PredictorData.xls", na = "NaN", sheet = 3)
+annual <- as.data.table(annual)
 ################################################################################
 #Calculate/Transform annual variables to conform with Goyal-Welch data (based on christophj.github.io)
 
@@ -62,17 +65,17 @@ annual <- annual[, rp_div := logretdiv - logRfree]
 
 #Time Series
 #ts_annual <- ts(annual, start=annual[1, yyyy], end=annual[nrow(annual), yyyy])
-ts_annual <- ts(annual, start = 1871, end = 2021, frequency = 1)
+ts_annual <- ts(annual, start = 1871, end = 2005, frequency = 1)
 }
 
 plot(ts_annual[, c("rp_div", "dp", "dy")])
-
+colnames(ts_annual)[colnames(ts_annual) == "b/m"] <- "b.m"
 ################################################################################
 #Statistics function (christophj.github.io)
 #ts_df: time series data frame, indep: independent variable, dep: dependent variable (rp_div in this analysis),
 #start: start date, end: end date, est_periods_OOS: OOS periods used
 
-get_statistics <- function(ts_df, indep, dep, h=1, start=1872, end=2021, est_periods_OOS = 20) {
+get_statistics <- function(ts_df, indep, dep, h=1, start=1872, end=2005, est_periods_OOS = 20) {
   
   #In-Sample Analysis
   
@@ -156,7 +159,7 @@ get_statistics <- function(ts_df, indep, dep, h=1, start=1872, end=2021, est_per
 }
 ###############################################################################
 #Get stats of each variable (IS, OOS errors for both models, IS, OOS R2, change in RMSE)
-{
+
 dp_stat <- get_statistics(ts_annual, "dp", "rp_div", start=1872)
 dy_stat <- get_statistics(ts_annual, "dy", "rp_div", start=1872)
 ep_stat <- get_statistics(ts_annual, "ep", "rp_div", start=1872)
@@ -173,7 +176,7 @@ bm_stat <- get_statistics(ts_annual, "b.m", "rp_div", start = 1921)
 tbl_stat <- get_statistics(ts_annual, "tbl", "rp_div", start=1920)
 tms_stat <- get_statistics(ts_annual, "tms", "rp_div", start = 1920)
 ntis_stat <- get_statistics(ts_annual, "ntis", "rp_div", start=1927)
-}
+
 #Plots - Cumulative SSE difference between IS/OOS of each variable
 ntis_stat$plotGG + ggtitle("Net Equity Expansion")
 dp_stat$plotGG + ggtitle("Dividend-Price Ratio (dp)")
@@ -226,6 +229,8 @@ gw_table <- as.data.frame(cbind(Variable, IS_R2, OS_R2, dRMSE), row.names=F)
 }
 #Table including both IS and OS R2, as well as change in RMSE
 print(gw_table)
+
+#Kitchen Sink Model
 
 ###############################################################################
 #Forecasting with different models
