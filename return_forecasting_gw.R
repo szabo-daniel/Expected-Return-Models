@@ -16,9 +16,9 @@ library(tseries)
 #monthly$Index <- as.numeric(gsub(",","", monthly$Index))
 #monthly$yyyymm <- as.Date(paste0(as.character(monthly$yyyymm), "01"), format = "%Y%m%d")
 
-annual <- read.csv("PredictorData2021 - Annual.csv", na.strings = "NaN", stringsAsFactors = F, header = T)
-annual <- as.data.table(annual)
-annual$Index <- as.numeric(gsub(",","",annual$Index))
+#annual <- read.csv("PredictorData2021 - Annual.csv", na.strings = "NaN", stringsAsFactors = F, header = T)
+#annual <- as.data.table(annual)
+#annual$Index <- as.numeric(gsub(",","",annual$Index))
 
 #Original 2005 data
 annual <- read_xls("PredictorData.xls", na = "NaN", sheet = 3)
