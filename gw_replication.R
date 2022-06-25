@@ -8,8 +8,9 @@ library(forecast)
 library(dyn)
 library(reshape2)
 library(readxl)
+library(rms)
 
-#Import original Goyal-Welch data (annual)
+?#Import original Goyal-Welch data (annual)
 
 an_data <- read_xls("PredictorData.xls", na = "NaN", sheet = 3)
 colnames(an_data)[colnames(an_data) == "yyyy"] <- "year"
@@ -69,24 +70,44 @@ plot(ts_data[,"eqprem"], main = "Equity Premium")
 #OS r2 = 1 - MSE(A) / MSE(N) || where A: Historical mean model and N: OLS model
 #dRMSE = sqrt(MSE(N)) - sqrt(MSE(A))
 #Data starts from 1872, goes until 2005, with 20 years being used for OS analysis
+start = which(an_data$year == 1872)
+end = which(an_data$year == 2005)
+OS_periods = 20
 
-#Historical mean model (A)
-hist_mean_model <- meanf(ts_data[,"eqprem"])
-IS_errors <- hist_mean_model$residuals
+#Historical mean model (A) ~ two versions, I'll pick one
+hist_mean_model <- meanf(ts_data[2:nrow(ts_data),"eqprem"])
+IS_errors_hist <- hist_mean_model$residuals
+summary(hist_mean_model)
+
+hist_mean_model <- meanf(an_data$eqprem[2:nrow(an_data)])
+IS_errors_hist <- hist_mean_model$residuals
 
 #OLS model (N)
 OLS_model <- lm(eqprem ~ dp, data = ts_data)
-summary(OLS_model)
+OLS_model_sum <- summary(OLS_model)
+IS_errors_OLS <- OLS_model$residuals
 
-control <- dyn$lm(eval(parse(text="eqprem")) ~ lag(eval(parse(text="dp")), -1), data=window(ts_data, start = 1872, end = 2005))
-summary(control)
+#control <- dyn$lm(eval(parse(text="eqprem")) ~ lag(eval(parse(text="dp")), -1), data=window(ts_data, start = 1872, end = 2005))
+#summary(control)
+
+#OS Errors (using for loop for now, may change later)
+#Historical Mean Model
+#for(i in seq(start + OS_periods, end - 1))
+#Test to see if it iterates correctly
+for(i in seq(2,135)) {
+  test <- an_data$eqprem[i]
+  print(test)
+  
+}
+print(test)
+#OLS Model
 
 #Calculate Error metrics (temp values for now)
-MSE_A <- NULL
-MSE_N <- NULL
+MSE_A <- mean(OS_errors_hist^2)
+MSE_N <- mean(OS_errors_OLS^2)
 
 #Stats (temp values for now)
-IS_R2 <- "Get from models using summary() function"
+IS_R2 <- OLS_model_sum$r.squared
 OS_R2 <- 1 - MSE_A / MSE_N
 dRMSE <- sqrt(MSE_N) / sqrt(MSE_A)
 
