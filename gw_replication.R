@@ -10,7 +10,7 @@ library(reshape2)
 library(readxl)
 library(rms)
 
-?#Import original Goyal-Welch data (annual)
+#Import original Goyal-Welch data (annual)
 
 an_data <- read_xls("PredictorData.xls", na = "NaN", sheet = 3)
 colnames(an_data)[colnames(an_data) == "yyyy"] <- "year"
