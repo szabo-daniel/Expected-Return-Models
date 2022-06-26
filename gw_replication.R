@@ -94,13 +94,29 @@ IS_errors_OLS <- OLS_model$residuals
 #Historical Mean Model
 #for(i in seq(start + OS_periods, end - 1))
 #Test to see if it iterates correctly
-for(i in seq(2,135)) {
-  test <- an_data$eqprem[i]
-  print(test)
+
+#as.numeric(window(ts_df, i+1, i+1)[, dep])
+window(ts_data, 1900, 1900)[, "eqprem"]
+an_data$eqprem[30]
+
+mean(window(ts_data, 1872, 1900)[, "eqprem"], na.rm=TRUE)
+mean(an_data$eqprem[start:30], na.rm = T)
+
+OS_errors_hist <- 0
+OS_errors_OLS <- 0
+
+for(i in seq(start, end)) {
+  #test <- an_data$eqprem[i]
+  #print(test)
   
+  year <- ts_data[i, "year"]
+  #Historical model
+  OS_errors_hist[i] <- an_data$eqprem[i] - mean(an_data$eqprem[start:i])
+  
+  #OLS model - using dp as test variable for now (still a WIP)
+
 }
 print(test)
-#OLS Model
 
 #Calculate Error metrics (temp values for now)
 MSE_A <- mean(OS_errors_hist^2)
