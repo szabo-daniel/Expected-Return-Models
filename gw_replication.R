@@ -74,10 +74,10 @@ start = which(an_data$year == 1872)
 end = which(an_data$year == 2005)
 OS_periods = 20
 
-#Historical mean model (A) ~ two versions, I'll pick one
-hist_mean_model <- meanf(ts_data[2:nrow(ts_data),"eqprem"])
-IS_errors_hist <- hist_mean_model$residuals
-summary(hist_mean_model)
+#Historical mean model (A) 
+#hist_mean_model <- meanf(ts_data[2:nrow(ts_data),"eqprem"])
+#IS_errors_hist <- hist_mean_model$residuals
+#summary(hist_mean_model)
 
 hist_mean_model <- meanf(an_data$eqprem[2:nrow(an_data)])
 IS_errors_hist <- hist_mean_model$residuals
@@ -91,44 +91,67 @@ IS_errors_OLS <- OLS_model$residuals
 #summary(control)
 
 #OS Errors (using for loop for now, may change later)
+
 #Historical Mean Model
-#for(i in seq(start + OS_periods, end - 1))
-#Test to see if it iterates correctly
+#window(ts_data, 1900, 1900)[, "eqprem"]
+#an_data$eqprem[30]
 
-#as.numeric(window(ts_df, i+1, i+1)[, dep])
-window(ts_data, 1900, 1900)[, "eqprem"]
-an_data$eqprem[30]
-
-mean(window(ts_data, 1872, 1900)[, "eqprem"], na.rm=TRUE)
-mean(an_data$eqprem[start:30], na.rm = T)
+#mean(window(ts_data, 1872, 1900)[, "eqprem"], na.rm=TRUE)
+#mean(an_data$eqprem[start:30], na.rm = T)
 
 OS_errors_hist <- 0
 OS_errors_OLS <- 0
 
+ts_data_df <- data.frame(ts_data)
 for(i in seq(start, end)) {
-  #test <- an_data$eqprem[i]
-  #print(test)
   
   year <- ts_data[i, "year"]
   #Historical model
   OS_errors_hist[i] <- an_data$eqprem[i] - mean(an_data$eqprem[start:i])
   
   #OLS model - using dp as test variable for now (still a WIP)
-
+  OS_OLS <- lm(eqprem ~ lag(dp), data = ts_data_df)
+  OLS_df <- data.frame(ts_data_df$dp[i:i])
+  colnames(OLS_df) <- "dp"
+  pred_OLS <- predict(OS_OLS, newdata=OLS_df)
+  OS_errors_OLS[i] <- pred_OLS - an_data$eqprem[i]
 }
-print(test)
 
 #Calculate Error metrics (temp values for now)
 MSE_A <- mean(OS_errors_hist^2)
 MSE_N <- mean(OS_errors_OLS^2)
 
 #Stats (temp values for now)
-IS_R2 <- OLS_model_sum$r.squared
-OS_R2 <- 1 - MSE_A / MSE_N
-dRMSE <- sqrt(MSE_N) / sqrt(MSE_A)
+IS_R2 <- round(OLS_model_sum$r.squared * 100, 2)
+OS_R2 <- round((1 - MSE_A / MSE_N) * 100, 2)
+dRMSE <- round(sqrt(MSE_N) / sqrt(MSE_A), 2)
 
-#Put into table (similar to table 1 in GW) - will need to include var list
-stats_table <- cbind(IS_R2, OS_R2, dRMSE)
+#Put into table (similar to table 1 in GW) - R2 values in % form
+Variable <- "dp"
+stats_table <- cbind(Variable, IS_R2, OS_R2, dRMSE)
+stats_table
+
+################################################################################
+#Testing different methods
+eqprem <- ts_data[,"eqprem"]
+start = which(an_data$year == 1872) # 2
+end = which(an_data$year == 2005) # 131
+OS_periods = 20
+
+train <- subset(eqprem, start = start, end = end - OS_periods)
+
+fc_hist_mean <- meanf(train, h = 20)
+hist_mean_errors <- eqprem - fc_hist_mean$mean
+MSE_hist <- mean(hist_mean_errors^2)
+plot(hist_mean_errors)
+
+train_ks <- ts_data_df[2:115, c("eqprem", "dfy", "infl", "svar", "de", "lty", "tms", "tbl", "dfr",
+                                "dp", "dy", "ltr", "ep", "bm", "ik", "ntis", "eqis")]
+train_ks <- na.omit(train_ks)
+ks_model <- lm(eqprem ~ ., data = train_ks)
+fc_ks <- predict(ks_model, h = 20, newdata = train_ks)
+#ks_errors <- eqprem - fc_ks
+MSE_ks <- mean(ks_errors^2)
 
 ################################################################################
 #Key:
