@@ -57,7 +57,7 @@ an_data$eqprem <- an_data$logReturnsDiv - an_data$logRfree
 
 #Kitchen Sink Regression (all vars) #testing for now, doesn't provide matching results here
 ks_all <- summary(lm(eqprem ~ dp + dy + ep + de + svar + bm + ntis + tbl + lty 
-                    + dfr + infl, data = an_data))
+                    + dfr + infl + csp + CRSP_SPvw + CRSP_SPvwx, data = an_data))
 ks_all 
 
 #Convert to time series format
@@ -69,7 +69,9 @@ plot(ts_data[,"eqprem"], main = "Equity Premium")
 #for reference (using formulas provided by GW:
 #OS r2 = 1 - MSE(A) / MSE(N) || where A: Historical mean model and N: OLS model
 #dRMSE = sqrt(MSE(N)) - sqrt(MSE(A))
-#Data starts from 1872, goes until 2005, with 20 years being used for OS analysis
+#Data starts from 1872, goes until 2005
+#Running this with a single variable for now, may turn this into a function later
+
 start = which(an_data$year == 1872)
 end = which(an_data$year == 2005)
 OS_periods = 20
@@ -105,7 +107,7 @@ OS_errors_OLS <- 0
 ts_data_df <- data.frame(ts_data)
 for(i in seq(start, end)) {
   
-  year <- ts_data[i, "year"]
+  #year <- ts_data[i, "year"]
   #Historical model
   OS_errors_hist[i] <- an_data$eqprem[i] - mean(an_data$eqprem[start:i])
   
@@ -117,9 +119,9 @@ for(i in seq(start, end)) {
   OS_errors_OLS[i] <- pred_OLS - an_data$eqprem[i]
 }
 
-#Calculate Error metrics (temp values for now)
-MSE_A <- mean(OS_errors_hist^2)
-MSE_N <- mean(OS_errors_OLS^2)
+#Calculate Error metrics 
+MSE_A <- mean(OS_errors_hist^2) 
+MSE_N <- mean(OS_errors_OLS^2, na.rm = T) 
 
 #Stats (temp values for now)
 IS_R2 <- round(OLS_model_sum$r.squared * 100, 2)
@@ -138,20 +140,42 @@ start = which(an_data$year == 1872) # 2
 end = which(an_data$year == 2005) # 131
 OS_periods = 20
 
+#Create training set
 train <- subset(eqprem, start = start, end = end - OS_periods)
-
+ 
+#Historical mean model & MSE
 fc_hist_mean <- meanf(train, h = 20)
 hist_mean_errors <- eqprem - fc_hist_mean$mean
 MSE_hist <- mean(hist_mean_errors^2)
 plot(hist_mean_errors)
 
+#Linear univariate model & MSE
+fc_lm <- lm(eqprem ~ dp, data = ts_data_df)
+lm_df <- data.frame(ts_data_df$dp)
+colnames(lm_df) <- "dp"
+pred_fc_lm <- predict(fc_lm, newdata=lm_df)
+fc_lm_errors <- pred_fc_lm - eqprem
+MSE_lm <- mean(fc_lm_errors^2, na.rm = T)
+plot(fc_lm_errors)
+
+### Stats (univariate)
+Variable <- "dp"
+test_IS_R2 <- round(OLS_model_sum$r.squared * 100, 2)
+test_OS_R2 <- round((1 - MSE_hist / MSE_lm) * 100, 2)
+test_dRMSE <- round(sqrt(MSE_lm) / sqrt(MSE_hist), 2)
+
+### Kitchen Sink Model testing
 train_ks <- ts_data_df[2:115, c("eqprem", "dfy", "infl", "svar", "de", "lty", "tms", "tbl", "dfr",
-                                "dp", "dy", "ltr", "ep", "bm", "ik", "ntis", "eqis")]
+                                "dp", "dy", "ltr", "ep", "bm", "ik", "ntis", "eqis", "CRSP_SPvw", "CRSP_SPvwx",
+                                "csp")]
 train_ks <- na.omit(train_ks)
 ks_model <- lm(eqprem ~ ., data = train_ks)
-fc_ks <- predict(ks_model, h = 20, newdata = train_ks)
-#ks_errors <- eqprem - fc_ks
-MSE_ks <- mean(ks_errors^2)
+fc_ks <- predict(ks_model, h = 20, newdata = ts_data_df)
+fc_ks_df <- as.data.frame(fc_ks)
+ks_errors <- eqprem[97:135] - fc_ks_df$`Point Forecast` #will need to fix this
+MSE_ks <- mean(ks_errors^2, na.rm = T)
+
+test_ks_OS_R2 <- round((1 - MSE_A / MSE_ks) * 100, 2)
 
 ################################################################################
 #Key:
@@ -173,4 +197,4 @@ MSE_ks <- mean(ks_errors^2)
 #ik: Investment capital ratio
 #ntis: Net equity issuing
 #eqis: Percent equity issuing
-#all: Kitchen sink
+#ks: Kitchen sink
