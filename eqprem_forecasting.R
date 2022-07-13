@@ -10,6 +10,7 @@ library(reshape2)
 library(readxl)
 library(zoo)
 library(corrplot)
+library(ForecastComb)
 
 #Import data (quarterly GW data updated thru 2021)
 qdata <- fread("PredictorData2021 - Quarterly.csv", na.strings = "NaN")
@@ -85,8 +86,16 @@ est_periods <- nrow(ts_data) - endIS
 train_eqprem <- train[,"eqprem"]
 all_eqprem <- ts_data[,"eqprem"]
 
+#Test Set
+startOS <- which(ts_data_df$yearq == 1976.00) + 1
+endOS <- nrow(ts_data)
+test <- subset(ts_data, start = startOS, end = endOS)
+
+test_eqprem <- test[,"eqprem"]
+
 #Historical mean model
-fc_hist_mean <- meanf(train_eqprem, h = est_periods) #create forecast
+fc_hist_mean <- meanf(train_eqprem, h = est_periods) 
+#create forecast
 hist_mean_errors <- all_eqprem - fc_hist_mean$mean #calculate error from "test" data
 RMSE_hist <- sqrt(mean(hist_mean_errors^2)) #Compute RMSE, can use as error metric
 
@@ -98,4 +107,18 @@ ks_pred_eqprem <- predict(ks_model, h = est_periods,  new_data = ks_data) #predi
 ks_errors <- all_eqprem - ks_pred_eqprem[1:297] #compute errors
 RMSE_ks <- sqrt(mean(ks_errors^2)) #Compute root mean squared error, can use as error metric
 
+###################################################################################
+#Forecast Combination
+train_pred <- train[,c("bm", "tbl", "lty", "ntis", "ltr", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
+train_obs <- train_eqprem
+test_obs <- test_eqprem
+test_pred <- test[,c("bm", "tbl", "lty", "ntis", "ltr", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
 
+combo_forecast <- foreccomb(train_obs, train_pred, test_obs, test_pred, criterion = "RMSE")
+#Auto-combine 
+best_auto_combination <- auto_combine(combo_auto_forecast, criterion = "RMSE")
+plot(best_auto_combination)
+
+#Rolling-combine
+rolling_combination <- rolling_combine(combo_forecast, comb_method = "comb_OLS")
+plot(rolling_combination)
