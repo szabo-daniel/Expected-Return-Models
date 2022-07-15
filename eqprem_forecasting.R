@@ -108,6 +108,9 @@ ks_errors <- all_eqprem - ks_pred_eqprem[1:297] #compute errors
 RMSE_ks <- sqrt(mean(ks_errors^2)) #Compute root mean squared error, can use as error metric
 
 ###################################################################################
+r2 <- function(actual,predict){
+  cor(actual,predict)^2}
+
 #Forecast Combination
 train_pred <- train[,c("bm", "tbl", "lty", "ntis", "ltr", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
 train_obs <- train_eqprem
@@ -115,10 +118,13 @@ test_obs <- test_eqprem
 test_pred <- test[,c("bm", "tbl", "lty", "ntis", "ltr", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
 
 combo_forecast <- foreccomb(train_obs, train_pred, test_obs, test_pred, criterion = "RMSE")
+
 #Auto-combine 
 best_auto_combination <- auto_combine(combo_auto_forecast, criterion = "RMSE")
 plot(best_auto_combination)
+OS_R2_BAC <- r2(combo_forecast$Actual_Test, best_auto_combination$Forecasts_Test)
 
 #Rolling-combine
 rolling_combination <- rolling_combine(combo_forecast, comb_method = "comb_OLS")
 plot(rolling_combination)
+OS_R2_RC <- r2(combo_forecast$Actual_Test, rolling_combination$Forecasts_Test)
