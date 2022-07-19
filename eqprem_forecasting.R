@@ -62,9 +62,9 @@ qdata$logReturnsDiv[2:nrow(qdata)] <- log(qdata$Index_Div[2:nrow(qdata)] / qdata
 qdata$eqprem <- qdata$logReturnsDiv - qdata$logRfree
 
 #Remove all unused variables from qdata
-qdata_rem <- qdata[, c("Index", "D12", "E12", "AAA", "BAA", "cay", "Rfree", "corpr", "csp", 
-                   "CRSP_SPvw", "CRSP_SPvwx", "D3", "E3", "logRfree", "Index_Div",
-                   "logReturnsDiv") := NULL]
+# qdata_rem <- qdata[, -c("Index", "D12", "E12", "AAA", "BAA", "cay", "Rfree", "corpr", "csp", 
+#                    "CRSP_SPvw", "CRSP_SPvwx", "D3", "E3", "logRfree", "Index_Div",
+#                    "logReturnsDiv")]
 
 #Convert to time series format - corresponding to time frame where all variables are available
 ts_data <- ts(qdata, start = 1947, end = 2021, frequency = 4) 
@@ -73,7 +73,9 @@ ts_data_df <- data.frame(ts_data)
 
 #Subset qdata into 1947 - 2021 time frame
 qdata <- subset(qdata, yearq >= 1947)
+
 #################################################################################
+
 #Correlation plot for data exploration
 corrplot.mixed(cor(qdata_rem[,2:ncol(qdata)], use="pairwise.complete.obs"))
 
@@ -100,13 +102,17 @@ hist_mean_errors <- all_eqprem - fc_hist_mean$mean #calculate error from "test" 
 RMSE_hist <- sqrt(mean(hist_mean_errors^2)) #Compute RMSE, can use as error metric
 
 #Preliminary kitchen sink model
-ks_data <- qdata[,-1] # Remove year column for regression
+ks_data <- qdata[,-c("yearq", "Index", "D12", "E12", "AAA", "BAA", "cay", "Rfree",
+                     "csp", "CRSP_SPvw", "CRSP_SPvwx", "D3", "E3", "logRfree", 
+                     "Index_Div", "logReturnsDiv")] # Remove year column for regression
 ks_model <- lm(eqprem ~ ., data = ks_data)
 summary(ks_model)
 ks_pred_eqprem <- predict(ks_model, h = est_periods,  new_data = ks_data) #predict OS period
 ks_errors <- all_eqprem - ks_pred_eqprem[1:297] #compute errors
 RMSE_ks <- sqrt(mean(ks_errors^2)) #Compute root mean squared error, can use as error metric
 
+plot(all_eqprem, type = "l", col = "blue")
+plot(ks_pred_eqprem[1:297], type = "l", col = "red")
 ###################################################################################
 r2 <- function(actual,predict){
   cor(actual,predict)^2}
@@ -120,7 +126,7 @@ test_pred <- test[,c("bm", "tbl", "lty", "ntis", "ltr", "svar", "ik", "dp", "dy"
 combo_forecast <- foreccomb(train_obs, train_pred, test_obs, test_pred, criterion = "RMSE")
 
 #Auto-combine 
-best_auto_combination <- auto_combine(combo_auto_forecast, criterion = "RMSE")
+best_auto_combination <- auto_combine(combo_forecast, criterion = "RMSE")
 plot(best_auto_combination)
 OS_R2_BAC <- r2(combo_forecast$Actual_Test, best_auto_combination$Forecasts_Test)
 
@@ -128,3 +134,43 @@ OS_R2_BAC <- r2(combo_forecast$Actual_Test, best_auto_combination$Forecasts_Test
 rolling_combination <- rolling_combine(combo_forecast, comb_method = "comb_OLS")
 plot(rolling_combination)
 OS_R2_RC <- r2(combo_forecast$Actual_Test, rolling_combination$Forecasts_Test)
+
+###################################################################################
+models <- data.frame(actual = test_eqprem)
+
+# for (i in seq(endIS, nrow(ts_data) - 1)) { #Iterate through OS periods - starts at 117
+#   models$mean[i - endIS + 1] <- mean(all_eqprem[1:i-1])
+#   print(i-endIS+1)
+#   }
+# models$mean_errors <- models$actual - models$mean
+# RMSE_mean <- sqrt(mean(models$mean_errors^2))
+
+#Returns
+hist_mean_model_returns <- ifelse(fc_hist_mean$mean > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
+mean_returns_hist <- mean(hist_mean_model_returns)
+
+ks_model_returns <- ifelse(ks_pred_eqprem > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
+mean_returns_ks <- mean(ks_model_returns)
+
+BAC_returns <- ifelse(best_auto_combination$Forecasts_Test > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
+mean_returns_BAC <- mean(BAC_returns)
+
+RC_returns <- ifelse(rolling_combination$Forecasts_Test > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
+mean_returns_RC <- mean(RC_returns)
+
+#Sharpe ratios
+hist_mean_sharpe <- mean_returns_hist / sd(hist_mean_model_returns)
+ks_sharpe <- mean_returns_ks / sd(ks_model_returns)
+BAC_sharpe <- mean_returns_BAC / sd(BAC_returns)
+RC_sharpe <- mean_returns_RC / sd(RC_returns)
+
+model_sharpes <- as.data.frame(cbind(hist_mean_sharpe, ks_sharpe, BAC_sharpe, RC_sharpe))
+model_sharpes
+
+######################################################################################
+
+
+
+
+
+
