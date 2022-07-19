@@ -75,7 +75,6 @@ ts_data_df <- data.frame(ts_data)
 qdata <- subset(qdata, yearq >= 1947)
 
 #################################################################################
-
 #Correlation plot for data exploration
 corrplot.mixed(cor(qdata_rem[,2:ncol(qdata)], use="pairwise.complete.obs"))
 
@@ -136,15 +135,6 @@ plot(rolling_combination)
 OS_R2_RC <- r2(combo_forecast$Actual_Test, rolling_combination$Forecasts_Test)
 
 ###################################################################################
-models <- data.frame(actual = test_eqprem)
-
-# for (i in seq(endIS, nrow(ts_data) - 1)) { #Iterate through OS periods - starts at 117
-#   models$mean[i - endIS + 1] <- mean(all_eqprem[1:i-1])
-#   print(i-endIS+1)
-#   }
-# models$mean_errors <- models$actual - models$mean
-# RMSE_mean <- sqrt(mean(models$mean_errors^2))
-
 #Returns
 hist_mean_model_returns <- ifelse(fc_hist_mean$mean > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
 mean_returns_hist <- mean(hist_mean_model_returns)
