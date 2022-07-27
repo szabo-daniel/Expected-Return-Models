@@ -11,7 +11,8 @@ library(readxl)
 library(zoo)
 library(corrplot)
 library(ForecastComb)
-
+library(dynlm)
+library(xts)
 #Import data (quarterly GW data updated thru 2021)
 qdata <- fread("PredictorData2021 - Quarterly.csv", na.strings = "NaN")
 qdata$Index <- as.numeric(gsub(",","", qdata$Index))
@@ -103,15 +104,39 @@ RMSE_hist <- sqrt(mean(hist_mean_errors^2)) #Compute RMSE, can use as error metr
 #Preliminary kitchen sink model
 ks_data <- qdata[,-c("yearq", "Index", "D12", "E12", "AAA", "BAA", "cay", "Rfree",
                      "csp", "CRSP_SPvw", "CRSP_SPvwx", "D3", "E3", "logRfree", 
-                     "Index_Div", "logReturnsDiv")] # Remove year column for regression
+                     "Index_Div", "logReturnsDiv", "corpr")] # Remove year column for regression
+#ks_data <- lag(ks_data[1:ncol(ks_data)-1], 1)
 ks_model <- lm(eqprem ~ ., data = ks_data)
+#ks_model <- dynlm(eqprem ~ L(as.xts(ks_data[1:ncol(ks_data)-1], 1)), data = ks_data) #just testing for now
+#ks_model <- dynlm(eqprem ~ lag(ks_data$bm, 1) +
+#                    lag(ks_data$tbl, 1) +
+#                    lag(ks_data$lty, 1) +
+#                    lag(ks_data$ntis, 1) +
+#                    lag(ks_data$infl, 1) +
+#                    lag(ks_data$ltr, 1) +
+#                    lag(ks_data$svar, 1) +
+#                    lag(ks_data$ik, 1) +
+#                    lag(ks_data$dp, 1) +
+#                    lag(ks_data$dy, 1) +
+#                    lag(ks_data$ep, 1) +
+#                    lag(ks_data$de, 1) +
+#                    lag(ks_data$tms, 1) +
+#                    lag(ks_data$dfy, 1) +
+#                    lag(ks_data$dfr, 1), data = ks_data)
 summary(ks_model)
-ks_pred_eqprem <- predict(ks_model, h = est_periods,  new_data = ks_data) #predict OS period
-ks_errors <- all_eqprem - ks_pred_eqprem[1:297] #compute errors
-RMSE_ks <- sqrt(mean(ks_errors^2)) #Compute root mean squared error, can use as error metric
+#ks_pred_eqprem <- predict(ks_model, h = est_periods,  new_data = ks_data) #predict OS period
+#ks_errors <- all_eqprem - ks_pred_eqprem[1:297] #compute errors
+#RMSE_ks <- sqrt(mean(ks_errors^2)) #Compute root mean squared error, can use as error metric
 
-plot(all_eqprem, type = "l", col = "blue")
-plot(ks_pred_eqprem[1:297], type = "l", col = "red")
+#plot(all_eqprem, type = "l", col = "blue")
+#plot(ks_pred_eqprem[1:297], type = "l", col = "red")
+# ks_data[,1:ncol(ks_data)-1]
+##################################################################################
+#KS model edited
+all_eqprem_test <- window(all_eqprem, start = 1976.25) 
+ks_pred_eqprem_test <- ks_pred_eqprem[118:297] #118 is the index where the OS period starts
+ks_errors_2 <- all_eqprem_test - ks_pred_eqprem_test
+RMSE_ks_2 <- sqrt(mean(ks_errors_2^2))
 ###################################################################################
 r2 <- function(actual,predict){
   cor(actual,predict)^2}
@@ -139,7 +164,7 @@ OS_R2_RC <- r2(combo_forecast$Actual_Test, rolling_combination$Forecasts_Test)
 hist_mean_model_returns <- ifelse(fc_hist_mean$mean > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
 mean_returns_hist <- mean(hist_mean_model_returns)
 
-ks_model_returns <- ifelse(ks_pred_eqprem > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
+ks_model_returns <- ifelse(ks_pred_eqprem_test > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
 mean_returns_ks <- mean(ks_model_returns)
 
 BAC_returns <- ifelse(best_auto_combination$Forecasts_Test > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
@@ -155,12 +180,49 @@ BAC_sharpe <- mean_returns_BAC / sd(BAC_returns)
 RC_sharpe <- mean_returns_RC / sd(RC_returns)
 
 model_sharpes <- as.data.frame(cbind(hist_mean_sharpe, ks_sharpe, BAC_sharpe, RC_sharpe))
-model_sharpes
+model_sharpes #BAC has the highest sharpe ratio
 
-######################################################################################
+####################################################################################
+#Export data to use for paper trading, will clean up later
+eqprem_actual <- subset(ts_data_df, yearq >= 2019)
+eqprem_actual$eqprem
+eqprem_actual$yearq
+
+best_eqprem_fc <- data.frame(best_auto_combination$Forecasts_Test)
+  
+best_eqprem_fc <- ts(best_auto_combination$Forecasts_Test, start = 2019, end = 2021, frequency = 4)
+best_eqprem_fc <- data.frame(best_eqprem_fc)
+
+#write.csv(best_eqprem_fc, "eqprem.csv", row.names = F)
+
+autoplot(best_eqprem_fc$best_auto_combination.Forecasts_Test)
+summary(best_eqprem_fc)
+
+dataSubsets <- subset(ts_data_df, yearq >= 2019)
+dataSubsets$Rfree
+
+eqprem_fc_2 <- ts(rolling_combination$Forecasts_Test, start = 2019, end = 2021, frequency = 4)
+eqprem_fc_2 <- data.frame(eqprem_fc_2)
+eqprem_fc_2
+
+eqprem_ks <- data.frame(ks_pred_eqprem[289:297])
+
+trading_data <- cbind(Period = c("2019 Q1", "2019 Q2", "2019 Q3", "2019 Q4", 
+                                 "2020 Q1", "2020 Q2", "2020 Q3", "2020 Q4",
+                                 "2021 Q1"),
+                      eqprem_actual$eqprem, 
+                      best_eqprem_fc,
+                      eqprem_fc_2,
+                      eqprem_ks,
+                      eqprem_actual$CRSP_SPvw,
+                      eqprem_actual$Rfree,
+                      eqprem_actual$Index)
+trading_data <- data.frame(trading_data)
+colnames(trading_data)[2:ncol(trading_data)] <- c("Actual Eqprem", "BAC Eqprem", "RC Eqprem", "KS Eqprem",
+                                                  "Index Return", "Rf Rate", "Index Price") 
+trading_data
+write.csv(trading_data, "paper_trading.csv")
 
 
 
-
-
-
+test1 <- data.frame(all_eqprem)
