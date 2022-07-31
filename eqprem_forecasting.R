@@ -1,8 +1,8 @@
 #Daniel Szabo
 
-rm(list = ls())
-
+library(caret)
 library(data.table)
+library(dplyr)
 library(ggplot2)
 library(forecast)
 library(dyn)
@@ -13,12 +13,13 @@ library(corrplot)
 library(ForecastComb)
 library(dynlm)
 library(xts)
+
 #Import data (quarterly GW data updated thru 2021)
 qdata <- fread("PredictorData2021 - Quarterly.csv", na.strings = "NaN")
 qdata$Index <- as.numeric(gsub(",","", qdata$Index))
 
-
-colnames(qdata)[colnames(qdata) == "yyyyq"] <- "yearq"
+#Convert variable names to more consistent/readable form
+colnames(qdata)[colnames(qdata) == "yyyyq"] <- "yearq" 
 colnames(qdata)[colnames(qdata) == "b/m"] <- "bm"
 
 qdata$yearq <- as.yearqtr(format(qdata$yearq), "%Y%q")
@@ -62,167 +63,232 @@ qdata$logReturnsDiv[2:nrow(qdata)] <- log(qdata$Index_Div[2:nrow(qdata)] / qdata
 #Equity premium
 qdata$eqprem <- qdata$logReturnsDiv - qdata$logRfree
 
-#Remove all unused variables from qdata
-# qdata_rem <- qdata[, -c("Index", "D12", "E12", "AAA", "BAA", "cay", "Rfree", "corpr", "csp", 
-#                    "CRSP_SPvw", "CRSP_SPvwx", "D3", "E3", "logRfree", "Index_Div",
-#                    "logReturnsDiv")]
+#Transform qdata into a time series object for future use
+ts_data <- ts(qdata)
+ts_data_dt <- data.table(ts_data)
 
-#Convert to time series format - corresponding to time frame where all variables are available
-ts_data <- ts(qdata, start = 1947, end = 2021, frequency = 4) 
-plot(ts_data[,"eqprem"], main = "Log Equity Premium")
-ts_data_df <- data.frame(ts_data)
-
-#Subset qdata into 1947 - 2021 time frame
-qdata <- subset(qdata, yearq >= 1947)
-
-#################################################################################
-#Correlation plot for data exploration
-corrplot.mixed(cor(qdata_rem[,2:ncol(qdata)], use="pairwise.complete.obs"))
-
-#Training Set 
-startIS <- 1
-endIS <- which(ts_data_df$yearq == 1976.00)
-train <- subset(ts_data, start = startIS, end = endIS)
-est_periods <- nrow(ts_data) - endIS
-
-train_eqprem <- train[,"eqprem"]
-all_eqprem <- ts_data[,"eqprem"]
-
-#Test Set
-startOS <- which(ts_data_df$yearq == 1976.00) + 1
-endOS <- nrow(ts_data)
-test <- subset(ts_data, start = startOS, end = endOS)
-
-test_eqprem <- test[,"eqprem"]
-
-#Historical mean model
-fc_hist_mean <- meanf(train_eqprem, h = est_periods) 
-#create forecast
-hist_mean_errors <- all_eqprem - fc_hist_mean$mean #calculate error from "test" data
-RMSE_hist <- sqrt(mean(hist_mean_errors^2)) #Compute RMSE, can use as error metric
-
-#Preliminary kitchen sink model
-ks_data <- qdata[,-c("yearq", "Index", "D12", "E12", "AAA", "BAA", "cay", "Rfree",
-                     "csp", "CRSP_SPvw", "CRSP_SPvwx", "D3", "E3", "logRfree", 
-                     "Index_Div", "logReturnsDiv", "corpr")] # Remove year column for regression
-#ks_data <- lag(ks_data[1:ncol(ks_data)-1], 1)
-ks_model <- lm(eqprem ~ ., data = ks_data)
-#ks_model <- dynlm(eqprem ~ L(as.xts(ks_data[1:ncol(ks_data)-1], 1)), data = ks_data) #just testing for now
-#ks_model <- dynlm(eqprem ~ lag(ks_data$bm, 1) +
-#                    lag(ks_data$tbl, 1) +
-#                    lag(ks_data$lty, 1) +
-#                    lag(ks_data$ntis, 1) +
-#                    lag(ks_data$infl, 1) +
-#                    lag(ks_data$ltr, 1) +
-#                    lag(ks_data$svar, 1) +
-#                    lag(ks_data$ik, 1) +
-#                    lag(ks_data$dp, 1) +
-#                    lag(ks_data$dy, 1) +
-#                    lag(ks_data$ep, 1) +
-#                    lag(ks_data$de, 1) +
-#                    lag(ks_data$tms, 1) +
-#                    lag(ks_data$dfy, 1) +
-#                    lag(ks_data$dfr, 1), data = ks_data)
-summary(ks_model)
-#ks_pred_eqprem <- predict(ks_model, h = est_periods,  new_data = ks_data) #predict OS period
-#ks_errors <- all_eqprem - ks_pred_eqprem[1:297] #compute errors
-#RMSE_ks <- sqrt(mean(ks_errors^2)) #Compute root mean squared error, can use as error metric
-
-#plot(all_eqprem, type = "l", col = "blue")
-#plot(ks_pred_eqprem[1:297], type = "l", col = "red")
-# ks_data[,1:ncol(ks_data)-1]
 ##################################################################################
-#KS model edited
-all_eqprem_test <- window(all_eqprem, start = 1976.25) 
-ks_pred_eqprem_test <- ks_pred_eqprem[118:297] #118 is the index where the OS period starts
-ks_errors_2 <- all_eqprem_test - ks_pred_eqprem_test
-RMSE_ks_2 <- sqrt(mean(ks_errors_2^2))
-###################################################################################
 r2 <- function(actual,predict){
   cor(actual,predict)^2}
 
-#Forecast Combination
-train_pred <- train[,c("bm", "tbl", "lty", "ntis", "ltr", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
-train_obs <- train_eqprem
-test_obs <- test_eqprem
-test_pred <- test[,c("bm", "tbl", "lty", "ntis", "ltr", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
+#Subset data to be from 1947 onward (to have values for all predictor variables)
+reg_data <- subset(qdata, yearq >= 1947)
 
-combo_forecast <- foreccomb(train_obs, train_pred, test_obs, test_pred, criterion = "RMSE")
+#Transform data to only include predictor variables, period, and dependent variable eqprem (log equity premium)
+reg_data <- reg_data[,c("yearq", "eqprem", "bm", "tbl", "lty", "ntis", "infl", "ltr", "svar", "ik", "dp", "dy",
+                        "ep", "de", "tms", "dfy", "dfr")]
 
-#Auto-combine 
-best_auto_combination <- auto_combine(combo_forecast, criterion = "RMSE")
-plot(best_auto_combination)
-OS_R2_BAC <- r2(combo_forecast$Actual_Test, best_auto_combination$Forecasts_Test)
+#Hold back predictor variable data by 1 quarter to prevent look-ahead bias
+reg_data <- reg_data %>% mutate(bm = lag(bm),
+                                tbl = lag(tbl),
+                                lty = lag(lty),
+                                ntis = lag(ntis),
+                                infl = lag(infl),
+                                ltr = lag(ltr),
+                                svar = lag(svar),
+                                ik = lag(ik),
+                                dp = lag(dp),
+                                dy = lag(dy),
+                                ep = lag(ep),
+                                de = lag(de),
+                                tms = lag(tms),
+                                dfy = lag(dfy),
+                                dfr = lag(dfr))
 
-#Rolling-combine
-rolling_combination <- rolling_combine(combo_forecast, comb_method = "comb_OLS")
-plot(rolling_combination)
-OS_R2_RC <- r2(combo_forecast$Actual_Test, rolling_combination$Forecasts_Test)
+reg_data <- reg_data[-1] #Remove last row to eliminate NAs
 
-###################################################################################
-#Returns
-hist_mean_model_returns <- ifelse(fc_hist_mean$mean > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
-mean_returns_hist <- mean(hist_mean_model_returns)
+#Create training and test sets
+#Constant parameters across all sets
+endIS <- which(reg_data$yearq == "2018 Q4") #end in-sample period 
+startOS <- endIS + 1 #start out-of-sample period 1 ahead
+endOS <- nrow(reg_data) #end out-of-sample at the end of the data
+est_periods <- endOS - endIS #periods to be estimated (length of OS period)
 
-ks_model_returns <- ifelse(ks_pred_eqprem_test > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
-mean_returns_ks <- mean(ks_model_returns)
+#Training set 1 (1947 - 2018)
+startIS_1 <- which(reg_data$yearq == "1947 Q2")
+train_1 <- reg_data[startIS_1:endIS]
 
-BAC_returns <- ifelse(best_auto_combination$Forecasts_Test > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
-mean_returns_BAC <- mean(BAC_returns)
+#Training set 2 (1990 - 2018)
+startIS_2 <- which(reg_data$yearq == "1990 Q1")
+train_2 <- reg_data[startIS_2:endIS]
 
-RC_returns <- ifelse(rolling_combination$Forecasts_Test > 0, test[,"CRSP_SPvw"], test[,"Rfree"])
-mean_returns_RC <- mean(RC_returns)
+#Training set 3 (2000 - 2018)
+startIS_3 <- which(reg_data$yearq == "2000 Q1")
+train_3 <- reg_data[startIS_3:endIS]
 
-#Sharpe ratios
-hist_mean_sharpe <- mean_returns_hist / sd(hist_mean_model_returns)
-ks_sharpe <- mean_returns_ks / sd(ks_model_returns)
-BAC_sharpe <- mean_returns_BAC / sd(BAC_returns)
-RC_sharpe <- mean_returns_RC / sd(RC_returns)
+#Test Set
+test <- reg_data[startOS:endOS]
 
-model_sharpes <- as.data.frame(cbind(hist_mean_sharpe, ks_sharpe, BAC_sharpe, RC_sharpe))
-model_sharpes #BAC has the highest sharpe ratio
+#Prevailing Mean Model (benchmark)
+#This model predicts the equity premium by taking the mean of previous equity premiums
 
-####################################################################################
-#Export data to use for paper trading, will clean up later
-eqprem_actual <- subset(ts_data_df, yearq >= 2019)
-eqprem_actual$eqprem
-eqprem_actual$yearq
+#1. Initialize data to be used, to be used only for this model
+all_reg_1 <- reg_data #1947-2021
+all_reg_2 <- reg_data[which(reg_data$yearq == "1990 Q1"):nrow(reg_data)] #1990-2021
+all_reg_3 <- reg_data[which(reg_data$yearq == "2000 Q1"):nrow(reg_data)] #2000-2021
 
-best_eqprem_fc <- data.frame(best_auto_combination$Forecasts_Test)
-  
-best_eqprem_fc <- ts(best_auto_combination$Forecasts_Test, start = 2019, end = 2021, frequency = 4)
-best_eqprem_fc <- data.frame(best_eqprem_fc)
+#Initialize vectors for predicted equity premium values to go into
+pm_pred_1 <- double(nrow(all_reg_1)) 
+pm_pred_2 <- double(nrow(all_reg_2))
+pm_pred_3 <- double(nrow(all_reg_3))
 
-#write.csv(best_eqprem_fc, "eqprem.csv", row.names = F)
+for (i in seq(1, nrow(all_reg_1))) {
+  pm_pred_1[i] <- mean(all_reg_1$eqprem[1:i-1])
+}
+pm_pred_test_1 <- tail(pm_pred_1, nrow(test)) #Last 12 variables represent our "test" data to compare with other models
+pm_1_R2 <- r2(test$eqprem, pm_pred_test_1)
 
-autoplot(best_eqprem_fc$best_auto_combination.Forecasts_Test)
-summary(best_eqprem_fc)
+for (i in seq(1, nrow(all_reg_2))){
+  pm_pred_2[i] <- mean(all_reg_2$eqprem[1:i-1])
+}
+pm_pred_test_2 <- tail(pm_pred_2, nrow(test))
+pm_2_R2 <- r2(test$eqprem, pm_pred_test_2)
 
-dataSubsets <- subset(ts_data_df, yearq >= 2019)
-dataSubsets$Rfree
+for (i in seq(1, nrow(all_reg_3))){
+  pm_pred_3[i] <- mean(all_reg_3$eqprem[1:i-1])
+}
+pm_pred_test_3 <- tail(pm_pred_3, nrow(test))
+pm_3_R2 <- r2(test$eqprem, pm_pred_test_3)
 
-eqprem_fc_2 <- ts(rolling_combination$Forecasts_Test, start = 2019, end = 2021, frequency = 4)
-eqprem_fc_2 <- data.frame(eqprem_fc_2)
-eqprem_fc_2
+#Historical Mean Model (benchmark)
+#fc_hist_1 <- meanf(train_1$eqprem, h = est_periods)
+#hist_1_errors <- test$eqprem - fc_hist_1$mean
+#RMSE_hist_1 <- sqrt(mean(hist_1_errors^2))
+#hist_1_R2 <- r2(test$eqprem, fc_hist_1$mean)
 
-eqprem_ks <- data.frame(ks_pred_eqprem[289:297])
+#fc_hist_2 <- meanf(train_2$eqprem, h = est_periods)
+#hist_2_errors <- test$eqprem - fc_hist_2$mean
+#RMSE_hist_2 <- sqrt(mean(hist_2_errors^2))
 
-trading_data <- cbind(Period = c("2019 Q1", "2019 Q2", "2019 Q3", "2019 Q4", 
-                                 "2020 Q1", "2020 Q2", "2020 Q3", "2020 Q4",
-                                 "2021 Q1"),
-                      eqprem_actual$eqprem, 
-                      best_eqprem_fc,
-                      eqprem_fc_2,
-                      eqprem_ks,
-                      eqprem_actual$CRSP_SPvw,
-                      eqprem_actual$Rfree,
-                      eqprem_actual$Index)
-trading_data <- data.frame(trading_data)
-colnames(trading_data)[2:ncol(trading_data)] <- c("Actual Eqprem", "BAC Eqprem", "RC Eqprem", "KS Eqprem",
-                                                  "Index Return", "Rf Rate", "Index Price") 
-trading_data
-write.csv(trading_data, "paper_trading.csv")
+#fc_hist_3 <- meanf(train_3$eqprem, h = est_periods)
+#hist_3_errors <- test$eqprem - fc_hist_3$mean
+#RMSE_hist_3 <- sqrt(mean(hist_3_errors^2))
+
+#Regression 1: 1947 - 2021 
+reg47_data <- train_1[,-c("yearq")]
+ks_reg47 <- lm(eqprem ~ ., data = reg47_data)
+ks_reg47_test <- lm(eqprem ~ bm+tbl+lty+ntis+infl+ltr+svar+ik+dp+dy+ep+dfy+dfr, data = reg47_data)
+summary(ks_reg47)
+summary(ks_reg47_test)
+
+ks_reg47_pred_eqprem <- predict(ks_reg47, h = est_periods, newdata = test[,-c("yearq")])
+ks_reg47_errors <- test$eqprem - ks_reg47_pred_eqprem
+RMSE_ks_reg47 <- sqrt(mean(ks_reg47_errors^2))
+
+ks_reg47_test_pred_eqprem <- predict(ks_reg47, h = est_periods, newdata = test[,-c("yearq")])
+
+ks_reg47_R2 <- r2(test$eqprem, ks_reg47_pred_eqprem)
+ks_reg47_R2_test <- r2(test$eqprem, ks_reg47_test_pred_eqprem)
+#Regression 2: 1990 - 2021
+reg90_data <- train_2[,-c("yearq")]
+ks_reg90 <- lm(eqprem ~ ., data = reg90_data)
+summary(ks_reg90)
+
+ks_reg90_pred_eqprem <- predict(ks_reg90, h = est_periods, newdata = test[,-c("yearq")])
+ks_reg90_errors <- test$eqprem - ks_reg90_pred_eqprem
+RMSE_ks_reg90 <- sqrt(mean(ks_reg90_errors^2))
+
+ks_reg90_R2 <- r2(test$eqprem, ks_reg90_pred_eqprem)
+
+#Regression 3: 2000 - 2021
+reg00_data <- train_3[,-c("yearq")]
+ks_reg00 <- lm(eqprem ~ ., data = reg00_data)
+summary(ks_reg00)
+
+ks_reg00_pred_eqprem <- predict(ks_reg00, h = est_periods, newdata = test[,-c("yearq")])
+ks_reg00_errors <- test$eqprem - ks_reg00_pred_eqprem
+RMSE_ks_reg00 <- sqrt(mean(ks_reg00_errors^2))
+
+ks_reg00_R2 <- r2(test$eqprem, ks_reg00_pred_eqprem)
+##################################################################################
+#Combination Forecasts
+#Combination Forecast 1: 1947 - 2018 training
+train_1_ts <- ts(train_1, start = c(1947, 2), end = c(2018, 4), frequency = 4)
+test_ts <- ts(test, start = c(2019, 1), end = c(2021, 4), frequency = 4)
+
+train_pred_1 <- train_1_ts[,c("bm", "tbl", "lty", "ntis", "ltr", "infl", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
+train_obs_1 <- train_1_ts[,"eqprem"]
+test_pred_1 <- test_ts[,c("bm", "tbl", "lty", "ntis", "infl", "ltr", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
+test_obs_1 <- test_ts[,"eqprem"]
+
+combo_forecast_1 <- foreccomb(train_obs_1, train_pred_1, test_obs_1, test_pred_1, criterion = "RMSE")
+
+best_auto_combination_1 <- auto_combine(combo_forecast_1, criterion = "RMSE")
+BAC_R2_1 <- r2(test$eqprem, best_auto_combination_1$Forecasts_Test)
+
+#Combination Forecast 2: 1990 - 2018 training
+train_2_ts <- ts(train_2, start = c(1990, 1), end = c(2018, 4), frequency = 4)
+test_ts <- ts(test, start = c(2019, 1), end = c(2021, 4), frequency = 4)
+
+train_pred_2 <- train_2_ts[,c("bm", "tbl", "lty", "ntis", "ltr", "infl", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
+train_obs_2 <- train_2_ts[,"eqprem"]
+test_pred_2 <- test_ts[,c("bm", "tbl", "lty", "ntis", "infl", "ltr", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
+test_obs_2 <- test_ts[,"eqprem"]
+
+combo_forecast_2 <- foreccomb(train_obs_2, train_pred_2, test_obs_2, test_pred_2, criterion = "RMSE")
+
+best_auto_combination_2 <- auto_combine(combo_forecast_2, criterion = "RMSE")
+BAC_R2_2 <- r2(test$eqprem, best_auto_combination_2$Forecasts_Test)
+
+#Combination Forecast 3: 2000 - 2018 training
+train_3_ts <- ts(train_3, start = c(2000, 1), end = c(2018, 4), frequency = 4)
+test_ts <- ts(test, start = c(2019, 1), end = c(2021, 4), frequency = 4)
+
+train_pred_3 <- train_3_ts[,c("bm", "tbl", "lty", "ntis", "ltr", "infl", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
+train_obs_3 <- train_3_ts[,"eqprem"]
+test_pred_3 <- test_ts[,c("bm", "tbl", "lty", "ntis", "infl", "ltr", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
+test_obs_3 <- test_ts[,"eqprem"]
+
+combo_forecast_3 <- foreccomb(train_obs_3, train_pred_3, test_obs_3, test_pred_3, criterion = "RMSE")
+
+best_auto_combination_3 <- auto_combine(combo_forecast_3, criterion = "RMSE")
+BAC_R2_3 <- r2(test$eqprem, best_auto_combination_3$Forecasts_Test)
+#################################################################################
+assets <- subset(qdata, qdata$yearq >= 2019)
+assets <- assets[,c("CRSP_SPvw", "Rfree")]
+
+#Model returns
+pm_1_returns <- ifelse(pm_pred_test_1 > 0, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_pm_1 <- mean(pm_1_returns)
+
+pm_2_returns <- ifelse(pm_pred_test_2 > 0, assets$CRSP_SPv, assets$Rfree)
+mean_returns_pm_2 <- mean(pm_2_returns)
+
+pm_3_returns <- ifelse(pm_pred_test_3 > 0, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_pm_3 <- mean(pm_3_returns)
+
+ks_1_model_returns <- ifelse(ks_reg47_pred_eqprem > -0.01, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_ks_1 <- mean(ks_1_model_returns)
+
+ks_2_model_returns <- ifelse(ks_reg90_pred_eqprem > -0.01, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_ks_2 <- mean(ks_2_model_returns)
+
+ks_3_model_returns <- ifelse(ks_reg00_pred_eqprem > -0.01, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_ks_3 <-mean(ks_3_model_returns)
+
+BAC_returns_1 <- ifelse(best_auto_combination_1$Forecasts_Test > -0.01, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_BAC_1 <- mean(BAC_returns_1)
+
+BAC_returns_2 <- ifelse(best_auto_combination_2$Forecasts_Test > -0.01, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_BAC_2 <- mean(BAC_returns_2)
+
+BAC_returns_3 <- ifelse(best_auto_combination_3$Forecasts_Test > -0.01, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_BAC_3 <- mean(BAC_returns_3)
+
+#Sharpe Ratios
+pm_1_sharpe <- mean_returns_pm_1 / sd(pm_1_returns)
+pm_2_sharpe <- mean_returns_pm_2 / sd(pm_2_returns)
+pm_3_sharpe <- mean_returns_pm_3 / sd(pm_3_returns)
+
+ks_1_sharpe <- mean_returns_ks_1 / sd(ks_1_model_returns)
+ks_2_sharpe <- mean_returns_ks_2 / sd(ks_2_model_returns)
+ks_3_sharpe <- mean_returns_ks_3 / sd(ks_3_model_returns)
+
+BAC_1_sharpe <- mean_returns_BAC_1 / sd(BAC_returns_1)
+BAC_2_sharpe <- mean_returns_BAC_2 / sd(BAC_returns_2)
+BAC_3_sharpe <- mean_returns_BAC_3 / sd(BAC_returns_3)
+
+rbind(pm_1_sharpe, pm_2_sharpe, pm_3_sharpe, ks_1_sharpe, ks_2_sharpe, ks_3_sharpe, BAC_1_sharpe, BAC_2_sharpe, BAC_3_sharpe)
+rbind(ks_reg47_R2, ks_reg90_R2, ks_reg00_R2, BAC_R2_1, BAC_R2_2, BAC_R2_3)
 
 
-
-test1 <- data.frame(all_eqprem)
