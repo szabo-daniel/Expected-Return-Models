@@ -133,10 +133,10 @@ pm_pred_2 <- double(nrow(all_reg_2))
 pm_pred_3 <- double(nrow(all_reg_3))
 
 for (i in seq(1, nrow(all_reg_1))) {
-  pm_pred_1[i] <- mean(all_reg_1$eqprem[1:i-1])
+  pm_pred_1[i] <- mean(all_reg_1$eqprem[1:i-1]) #Insert equity premium prediction based on mean of previous equity premiums
 }
 pm_pred_test_1 <- tail(pm_pred_1, nrow(test)) #Last 12 variables represent our "test" data to compare with other models
-pm_1_R2 <- r2(test$eqprem, pm_pred_test_1)
+pm_1_R2 <- r2(test$eqprem, pm_pred_test_1) #Calculate R2 metric for model
 
 for (i in seq(1, nrow(all_reg_2))){
   pm_pred_2[i] <- mean(all_reg_2$eqprem[1:i-1])
@@ -165,20 +165,21 @@ pm_3_R2 <- r2(test$eqprem, pm_pred_test_3)
 #RMSE_hist_3 <- sqrt(mean(hist_3_errors^2))
 
 #Regression 1: 1947 - 2021 
-reg47_data <- train_1[,-c("yearq")]
-ks_reg47 <- lm(eqprem ~ ., data = reg47_data)
-ks_reg47_test <- lm(eqprem ~ bm+tbl+lty+ntis+infl+ltr+svar+ik+dp+dy+ep+dfy+dfr, data = reg47_data)
+reg47_data <- train_1[,-c("yearq")] #Omit yearq from regression
+ks_reg47 <- lm(eqprem ~ ., data = reg47_data) #Use all predictor variables in regression
+#ks_reg47_test <- lm(eqprem ~ bm+tbl+lty+ntis+infl+ltr+svar+ik+dp+dy+ep+dfy+dfr, data = reg47_data)
 summary(ks_reg47)
-summary(ks_reg47_test)
+#summary(ks_reg47_test)
 
-ks_reg47_pred_eqprem <- predict(ks_reg47, h = est_periods, newdata = test[,-c("yearq")])
-ks_reg47_errors <- test$eqprem - ks_reg47_pred_eqprem
-RMSE_ks_reg47 <- sqrt(mean(ks_reg47_errors^2))
+ks_reg47_pred_eqprem <- predict(ks_reg47, h = est_periods, newdata = test[,-c("yearq")]) #Forecast equity premium values across OS period
+ks_reg47_errors <- test$eqprem - ks_reg47_pred_eqprem #Calculate difference between actual and predicted equity premium values
+RMSE_ks_reg47 <- sqrt(mean(ks_reg47_errors^2)) #calculate RMSE using error values
 
-ks_reg47_test_pred_eqprem <- predict(ks_reg47, h = est_periods, newdata = test[,-c("yearq")])
+#ks_reg47_test_pred_eqprem <- predict(ks_reg47, h = est_periods, newdata = test[,-c("yearq")])
 
-ks_reg47_R2 <- r2(test$eqprem, ks_reg47_pred_eqprem)
-ks_reg47_R2_test <- r2(test$eqprem, ks_reg47_test_pred_eqprem)
+ks_reg47_R2 <- r2(test$eqprem, ks_reg47_pred_eqprem) #Calculate OS R2 value for regression
+#ks_reg47_R2_test <- r2(test$eqprem, ks_reg47_test_pred_eqprem)
+
 #Regression 2: 1990 - 2021
 reg90_data <- train_2[,-c("yearq")]
 ks_reg90 <- lm(eqprem ~ ., data = reg90_data)
@@ -203,17 +204,25 @@ ks_reg00_R2 <- r2(test$eqprem, ks_reg00_pred_eqprem)
 ##################################################################################
 #Combination Forecasts
 #Combination Forecast 1: 1947 - 2018 training
-train_1_ts <- ts(train_1, start = c(1947, 2), end = c(2018, 4), frequency = 4)
-test_ts <- ts(test, start = c(2019, 1), end = c(2021, 4), frequency = 4)
+train_1_ts <- ts(train_1, start = c(1947, 2), end = c(2018, 4), frequency = 4) #Subset training data to be from 1947:2-2018:4
+test_ts <- ts(test, start = c(2019, 1), end = c(2021, 4), frequency = 4) #Create test test to be from 2019:1-2021:4
 
+#Create variables to use in "ForecastComb" package
+#Predictor variable data in training data
 train_pred_1 <- train_1_ts[,c("bm", "tbl", "lty", "ntis", "ltr", "infl", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
+#Dependent variable data in training data
 train_obs_1 <- train_1_ts[,"eqprem"]
+#Predictor variable data in test data
 test_pred_1 <- test_ts[,c("bm", "tbl", "lty", "ntis", "infl", "ltr", "svar", "ik", "dp", "dy", "ep", "de", "tms", "dfy", "dfr")]
+#Dependent variable data in test data
 test_obs_1 <- test_ts[,"eqprem"]
 
+#Combine above variables into "forecomb" object - feeds into different combination forecasts
 combo_forecast_1 <- foreccomb(train_obs_1, train_pred_1, test_obs_1, test_pred_1, criterion = "RMSE")
 
+#Create best auto combination model (best fit method) that minimizes RMSE
 best_auto_combination_1 <- auto_combine(combo_forecast_1, criterion = "RMSE")
+#Compute out-of-sample R2
 BAC_R2_1 <- r2(test$eqprem, best_auto_combination_1$Forecasts_Test)
 
 #Combination Forecast 2: 1990 - 2018 training
@@ -244,12 +253,15 @@ combo_forecast_3 <- foreccomb(train_obs_3, train_pred_3, test_obs_3, test_pred_3
 best_auto_combination_3 <- auto_combine(combo_forecast_3, criterion = "RMSE")
 BAC_R2_3 <- r2(test$eqprem, best_auto_combination_3$Forecasts_Test)
 #################################################################################
+#Paper trading
+#Create portfolio data, consisting of the index returns and risk-free return
 assets <- subset(qdata, qdata$yearq >= 2019)
 assets <- assets[,c("CRSP_SPvw", "Rfree")]
 
 #Model returns
+#If equity premium is positive, invest in market index. If negative, invest in risk-free asset
 pm_1_returns <- ifelse(pm_pred_test_1 > 0, assets$CRSP_SPvw, assets$Rfree)
-mean_returns_pm_1 <- mean(pm_1_returns)
+mean_returns_pm_1 <- mean(pm_1_returns) #calculate mena of returns over time period
 
 pm_2_returns <- ifelse(pm_pred_test_2 > 0, assets$CRSP_SPv, assets$Rfree)
 mean_returns_pm_2 <- mean(pm_2_returns)
@@ -276,7 +288,7 @@ BAC_returns_3 <- ifelse(best_auto_combination_3$Forecasts_Test > -0.01, assets$C
 mean_returns_BAC_3 <- mean(BAC_returns_3)
 
 #Sharpe Ratios
-pm_1_sharpe <- mean_returns_pm_1 / sd(pm_1_returns)
+pm_1_sharpe <- mean_returns_pm_1 / sd(pm_1_returns) #mean of returns divided by their standard deviation
 pm_2_sharpe <- mean_returns_pm_2 / sd(pm_2_returns)
 pm_3_sharpe <- mean_returns_pm_3 / sd(pm_3_returns)
 
@@ -288,6 +300,7 @@ BAC_1_sharpe <- mean_returns_BAC_1 / sd(BAC_returns_1)
 BAC_2_sharpe <- mean_returns_BAC_2 / sd(BAC_returns_2)
 BAC_3_sharpe <- mean_returns_BAC_3 / sd(BAC_returns_3)
 
+#Output results
 rbind(pm_1_sharpe, pm_2_sharpe, pm_3_sharpe, ks_1_sharpe, ks_2_sharpe, ks_3_sharpe, BAC_1_sharpe, BAC_2_sharpe, BAC_3_sharpe)
 rbind(ks_reg47_R2, ks_reg90_R2, ks_reg00_R2, BAC_R2_1, BAC_R2_2, BAC_R2_3)
 
