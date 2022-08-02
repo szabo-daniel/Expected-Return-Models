@@ -13,6 +13,7 @@ library(corrplot)
 library(ForecastComb)
 library(dynlm)
 library(xts)
+library(stargazer)
 
 #Import data (quarterly GW data updated thru 2021)
 qdata <- fread("PredictorData2021 - Quarterly.csv", na.strings = "NaN")
@@ -70,6 +71,10 @@ ts_data_dt <- data.table(ts_data)
 ##################################################################################
 r2 <- function(actual,predict){
   cor(actual,predict)^2}
+
+R2 <- function(hist_errors, model_errors){
+  1 - mean(hist_errors^2)/mean(model_errors^2)
+}
 
 #Subset data to be from 1947 onward (to have values for all predictor variables)
 reg_data <- subset(qdata, yearq >= 1947)
@@ -137,18 +142,21 @@ for (i in seq(1, nrow(all_reg_1))) {
 }
 pm_pred_test_1 <- tail(pm_pred_1, nrow(test)) #Last 12 variables represent our "test" data to compare with other models
 pm_1_R2 <- r2(test$eqprem, pm_pred_test_1) #Calculate R2 metric for model
+pm_1_errors <- test$eqprem - pm_pred_test_1
 
 for (i in seq(1, nrow(all_reg_2))){
   pm_pred_2[i] <- mean(all_reg_2$eqprem[1:i-1])
 }
 pm_pred_test_2 <- tail(pm_pred_2, nrow(test))
 pm_2_R2 <- r2(test$eqprem, pm_pred_test_2)
+pm_2_errors <- test$eqprem - pm_pred_test_2
 
 for (i in seq(1, nrow(all_reg_3))){
   pm_pred_3[i] <- mean(all_reg_3$eqprem[1:i-1])
 }
 pm_pred_test_3 <- tail(pm_pred_3, nrow(test))
 pm_3_R2 <- r2(test$eqprem, pm_pred_test_3)
+pm_3_errors <- test$eqprem - pm_pred_test_3
 
 #Historical Mean Model (benchmark)
 #fc_hist_1 <- meanf(train_1$eqprem, h = est_periods)
@@ -167,18 +175,14 @@ pm_3_R2 <- r2(test$eqprem, pm_pred_test_3)
 #Regression 1: 1947 - 2021 
 reg47_data <- train_1[,-c("yearq")] #Omit yearq from regression
 ks_reg47 <- lm(eqprem ~ ., data = reg47_data) #Use all predictor variables in regression
-#ks_reg47_test <- lm(eqprem ~ bm+tbl+lty+ntis+infl+ltr+svar+ik+dp+dy+ep+dfy+dfr, data = reg47_data)
 summary(ks_reg47)
-#summary(ks_reg47_test)
 
 ks_reg47_pred_eqprem <- predict(ks_reg47, h = est_periods, newdata = test[,-c("yearq")]) #Forecast equity premium values across OS period
 ks_reg47_errors <- test$eqprem - ks_reg47_pred_eqprem #Calculate difference between actual and predicted equity premium values
 RMSE_ks_reg47 <- sqrt(mean(ks_reg47_errors^2)) #calculate RMSE using error values
 
-#ks_reg47_test_pred_eqprem <- predict(ks_reg47, h = est_periods, newdata = test[,-c("yearq")])
-
-ks_reg47_R2 <- r2(test$eqprem, ks_reg47_pred_eqprem) #Calculate OS R2 value for regression
-#ks_reg47_R2_test <- r2(test$eqprem, ks_reg47_test_pred_eqprem)
+#ks_reg47_R2 <- r2(test$eqprem, ks_reg47_pred_eqprem) #Calculate OS R2 value for regression
+ks_reg47_R2 <- R2(pm_1_errors, ks_reg47_errors)
 
 #Regression 2: 1990 - 2021
 reg90_data <- train_2[,-c("yearq")]
@@ -189,7 +193,8 @@ ks_reg90_pred_eqprem <- predict(ks_reg90, h = est_periods, newdata = test[,-c("y
 ks_reg90_errors <- test$eqprem - ks_reg90_pred_eqprem
 RMSE_ks_reg90 <- sqrt(mean(ks_reg90_errors^2))
 
-ks_reg90_R2 <- r2(test$eqprem, ks_reg90_pred_eqprem)
+#ks_reg90_R2 <- r2(test$eqprem, ks_reg90_pred_eqprem)
+ks_reg90_R2 <- R2(pm_2_errors, ks_reg90_errors)
 
 #Regression 3: 2000 - 2021
 reg00_data <- train_3[,-c("yearq")]
@@ -200,7 +205,8 @@ ks_reg00_pred_eqprem <- predict(ks_reg00, h = est_periods, newdata = test[,-c("y
 ks_reg00_errors <- test$eqprem - ks_reg00_pred_eqprem
 RMSE_ks_reg00 <- sqrt(mean(ks_reg00_errors^2))
 
-ks_reg00_R2 <- r2(test$eqprem, ks_reg00_pred_eqprem)
+#ks_reg00_R2 <- r2(test$eqprem, ks_reg00_pred_eqprem)
+ks_reg00_R2 <- R2(pm_3_errors, ks_reg00_errors)
 ##################################################################################
 #Combination Forecasts
 #Combination Forecast 1: 1947 - 2018 training
@@ -222,8 +228,16 @@ combo_forecast_1 <- foreccomb(train_obs_1, train_pred_1, test_obs_1, test_pred_1
 
 #Create best auto combination model (best fit method) that minimizes RMSE
 best_auto_combination_1 <- auto_combine(combo_forecast_1, criterion = "RMSE")
+
+#Compute errors
+BAC_1_errors <- test$eqprem - best_auto_combination_1$Forecasts_Test
+
 #Compute out-of-sample R2
-BAC_R2_1 <- r2(test$eqprem, best_auto_combination_1$Forecasts_Test)
+#BAC_R2_1 <- r2(test$eqprem, best_auto_combination_1$Forecasts_Test)
+BAC_1_R2 <- R2(pm_1_errors, BAC_1_errors)
+
+#Compute RMSE
+RMSE_BAC_1 <- best_auto_combination_1$Accuracy_Test[2]
 
 #Combination Forecast 2: 1990 - 2018 training
 train_2_ts <- ts(train_2, start = c(1990, 1), end = c(2018, 4), frequency = 4)
@@ -237,8 +251,12 @@ test_obs_2 <- test_ts[,"eqprem"]
 combo_forecast_2 <- foreccomb(train_obs_2, train_pred_2, test_obs_2, test_pred_2, criterion = "RMSE")
 
 best_auto_combination_2 <- auto_combine(combo_forecast_2, criterion = "RMSE")
-BAC_R2_2 <- r2(test$eqprem, best_auto_combination_2$Forecasts_Test)
+#BAC_R2_2 <- r2(test$eqprem, best_auto_combination_2$Forecasts_Test)
+BAC_2_errors <- test$eqprem - best_auto_combination_2$Forecasts_Test
 
+BAC_2_R2 <- R2(pm_2_errors, BAC_2_errors)
+
+RMSE_BAC_2 <- best_auto_combination_2$Accuracy_Test[2]
 #Combination Forecast 3: 2000 - 2018 training
 train_3_ts <- ts(train_3, start = c(2000, 1), end = c(2018, 4), frequency = 4)
 test_ts <- ts(test, start = c(2019, 1), end = c(2021, 4), frequency = 4)
@@ -251,8 +269,33 @@ test_obs_3 <- test_ts[,"eqprem"]
 combo_forecast_3 <- foreccomb(train_obs_3, train_pred_3, test_obs_3, test_pred_3, criterion = "RMSE")
 
 best_auto_combination_3 <- auto_combine(combo_forecast_3, criterion = "RMSE")
-BAC_R2_3 <- r2(test$eqprem, best_auto_combination_3$Forecasts_Test)
-#################################################################################
+
+BAC_3_errors <- test$eqprem - best_auto_combination_3$Forecasts_Test
+#BAC_R2_3 <- r2(test$eqprem, best_auto_combination_3$Forecasts_Test)
+BAC_3_R2 <- R2(pm_3_errors, BAC_3_errors)
+
+RMSE_BAC_3 <- best_auto_combination_3$Accuracy_Test[2]
+
+#Bates-Granger Forecasts
+BG_combo_1 <- comb_BG(combo_forecast_1)
+BG_combo_2 <- comb_BG(combo_forecast_2)
+BG_combo_3 <- comb_BG(combo_forecast_3)
+
+BG_1_errors <- test$eqprem - BG_combo_1$Forecasts_Test
+BG_2_errors <- test$eqprem - BG_combo_2$Forecasts_Test
+BG_3_errors <- test$eqprem - BG_combo_3$Forecasts_Test
+
+BG_1_R2 <- R2(pm_1_errors, BG_1_errors)
+BG_2_R2 <- R2(pm_2_errors, BG_2_errors)
+BG_3_R2 <- R2(pm_3_errors, BG_3_errors)
+
+BG_1_RMSE <- BG_combo_1$Accuracy_Test[2]
+BG_2_RMSE <- BG_combo_2$Accuracy_Test[2]
+BG_3_RMSE <- BG_combo_3$Accuracy_Test[2]
+#BG_R2_1 <- r2(test$eqprem, BG_combo_1$Forecasts_Test)
+#BG_R2_2 <- r2(test$eqprem, BG_combo_2$Forecasts_Test)
+#BG_R2_3 <- r2(test$eqprem, BG_combo_3$Forecasts_Test)
+##################################################################################
 #Paper trading
 #Create portfolio data, consisting of the index returns and risk-free return
 assets <- subset(qdata, qdata$yearq >= 2019)
@@ -269,23 +312,32 @@ mean_returns_pm_2 <- mean(pm_2_returns)
 pm_3_returns <- ifelse(pm_pred_test_3 > 0, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_pm_3 <- mean(pm_3_returns)
 
-ks_1_model_returns <- ifelse(ks_reg47_pred_eqprem > -0.01, assets$CRSP_SPvw, assets$Rfree)
+ks_1_model_returns <- ifelse(ks_reg47_pred_eqprem > 0, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_ks_1 <- mean(ks_1_model_returns)
 
-ks_2_model_returns <- ifelse(ks_reg90_pred_eqprem > -0.01, assets$CRSP_SPvw, assets$Rfree)
+ks_2_model_returns <- ifelse(ks_reg90_pred_eqprem > 0, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_ks_2 <- mean(ks_2_model_returns)
 
-ks_3_model_returns <- ifelse(ks_reg00_pred_eqprem > -0.01, assets$CRSP_SPvw, assets$Rfree)
+ks_3_model_returns <- ifelse(ks_reg00_pred_eqprem > 0, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_ks_3 <-mean(ks_3_model_returns)
 
-BAC_returns_1 <- ifelse(best_auto_combination_1$Forecasts_Test > -0.01, assets$CRSP_SPvw, assets$Rfree)
+BAC_returns_1 <- ifelse(best_auto_combination_1$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_BAC_1 <- mean(BAC_returns_1)
 
-BAC_returns_2 <- ifelse(best_auto_combination_2$Forecasts_Test > -0.01, assets$CRSP_SPvw, assets$Rfree)
+BAC_returns_2 <- ifelse(best_auto_combination_2$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_BAC_2 <- mean(BAC_returns_2)
 
-BAC_returns_3 <- ifelse(best_auto_combination_3$Forecasts_Test > -0.01, assets$CRSP_SPvw, assets$Rfree)
+BAC_returns_3 <- ifelse(best_auto_combination_3$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_BAC_3 <- mean(BAC_returns_3)
+
+BG_returns_1 <- ifelse(BG_combo_1$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_BG_1 <- mean(BG_returns_1)
+
+BG_returns_2 <- ifelse(BG_combo_2$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_BG_2 <- mean(BG_returns_2)
+
+BG_returns_3 <- ifelse(BG_combo_2$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
+mean_returns_BG_3 <- mean(BG_returns_3)
 
 #Sharpe Ratios
 pm_1_sharpe <- mean_returns_pm_1 / sd(pm_1_returns) #mean of returns divided by their standard deviation
@@ -300,8 +352,20 @@ BAC_1_sharpe <- mean_returns_BAC_1 / sd(BAC_returns_1)
 BAC_2_sharpe <- mean_returns_BAC_2 / sd(BAC_returns_2)
 BAC_3_sharpe <- mean_returns_BAC_3 / sd(BAC_returns_3)
 
+BG_1_sharpe <- mean_returns_BG_1 / sd(BG_returns_1)
+BG_2_sharpe <- mean_returns_BG_2 / sd(BG_returns_2)
+BG_3_sharpe <- mean_returns_BG_3 / sd(BG_returns_3)
+
 #Output results
-rbind(pm_1_sharpe, pm_2_sharpe, pm_3_sharpe, ks_1_sharpe, ks_2_sharpe, ks_3_sharpe, BAC_1_sharpe, BAC_2_sharpe, BAC_3_sharpe)
-rbind(ks_reg47_R2, ks_reg90_R2, ks_reg00_R2, BAC_R2_1, BAC_R2_2, BAC_R2_3)
+rbind(ks_1_sharpe, ks_2_sharpe, ks_3_sharpe, 
+      BAC_1_sharpe, BAC_2_sharpe, BAC_3_sharpe,
+      BG_1_sharpe, BG_2_sharpe, BG_3_sharpe)
 
+rbind(ks_reg47_R2, ks_reg90_R2, ks_reg00_R2, 
+      BAC_1_R2, BAC_2_R2, BAC_3_R2,
+      BG_1_R2, BG_2_R2, BG_3_R2)
 
+rbind(RMSE_ks_reg47, RMSE_ks_reg90, RMSE_ks_reg00,
+      RMSE_BAC_1, RMSE_BAC_2, RMSE_BAC_3,
+      BG_1_RMSE, BG_2_RMSE, BG_3_RMSE)
+################################################################################
