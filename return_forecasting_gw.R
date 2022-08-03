@@ -1,6 +1,5 @@
 #Daniel Szabo 
-
-rm(list = ls())
+#Functions sourced from christophj.github.io)
 
 library(data.table)
 library(ggplot2)
@@ -9,22 +8,19 @@ library(vars)
 library(dyn)
 library(reshape2)
 library(tseries)
+library(readxl)
 
 #Import Data
-#monthly <- read.csv("PredictorData2021 - Monthly.csv", na.strings = "NaN", stringsAsFactors = F, header = T)
-#monthly <- as.data.table(monthly)
-#monthly$Index <- as.numeric(gsub(",","", monthly$Index))
-#monthly$yyyymm <- as.Date(paste0(as.character(monthly$yyyymm), "01"), format = "%Y%m%d")
 
-#annual <- read.csv("PredictorData2021 - Annual.csv", na.strings = "NaN", stringsAsFactors = F, header = T)
-#annual <- as.data.table(annual)
-#annual$Index <- as.numeric(gsub(",","",annual$Index))
+annual <- read.csv("PredictorData2021 - Annual.csv", na.strings = "NaN", stringsAsFactors = F, header = T)
+annual <- as.data.table(annual)
+annual$Index <- as.numeric(gsub(",","",annual$Index))
 
 #Original 2005 data
-annual <- read_xls("PredictorData.xls", na = "NaN", sheet = 3)
-annual <- as.data.table(annual)
+#annual <- read_xls("PredictorData.xls", na = "NaN", sheet = 3)
+#annual <- as.data.table(annual)
 ################################################################################
-#Calculate/Transform annual variables to conform with Goyal-Welch data (based on christophj.github.io)
+#Calculate/Transform annual variables to conform with Goyal-Welch data (from christophj.github.io)
 
 {
 #Continuously compounded index returns + 12 month moving sum of dividends
@@ -121,8 +117,7 @@ get_statistics <- function(ts_df, indep, dep, h=1, start=1872, end=2005, est_per
   #Is the -1 enough (maybe -2 needed because of lag)?
   OOS_oR2 <- OOS_R2 - (1-OOS_R2)*(reg$df.residual)/(T - 1) 
   dRMSE <- sqrt(MSE_N) - sqrt(MSE_A)
-  ##
-  
+
   #### CREATE PLOT
   IS  <- cumsum(IS_error_N[2:length(IS_error_N)]^2)-cumsum(IS_error_A^2)
   OOS <- cumsum(OOS_error_N^2)-cumsum(OOS_error_A^2)
@@ -198,91 +193,32 @@ tms_stat$plotGG + ggtitle("Term spread")
 ###############################################################################
 #Stats Table (IS, OOS R2 and change in RMSE for each variable - similar to GW tables)
 {
-Variable <- c("dfy", "infl", "svar", "d/e", "lty", "tms", "tbl", "dfr", "d/p", 
-              "d/y", "ltr", "e/p", "b/m", "i/k", "ntis", "eqis")
+Variable <- c("dfy", "infl", "svar", "de", "lty", "tms", "tbl", "dfr", "dp", 
+              "dy", "ltr", "ep", "bm", "ik", "ntis")
 
 IS_R2 <- c(dfy_stat$IS_aR2, infl_stat$IS_aR2, svar_stat$IS_aR2,
                de_stat$IS_aR2, lty_stat$IS_aR2, tms_stat$IS_aR2,
                tbl_stat$IS_aR2, dfr_stat$IS_aR2, dp_stat$IS_aR2,
                dy_stat$IS_aR2, ltr_stat$IS_aR2, ep_stat$IS_aR2,
-               bm_stat$IS_aR2, ik_stat$IS_aR2, ntis_stat$IS_aR2,
-               eqis_stat$IS_aR2)
-IS_R2 <- round(IS_R2*100, 2)
+               bm_stat$IS_aR2, ik_stat$IS_aR2, ntis_stat$IS_aR2)
 
 OS_R2 <- c(dfy_stat$OOS_oR2, infl_stat$OOS_oR2, svar_stat$OOS_oR2,
            de_stat$OOS_oR2, lty_stat$OOS_oR2, tms_stat$OOS_oR2,
            tbl_stat$OOS_oR2, dfr_stat$OOS_oR2, dp_stat$OOS_oR2,
            dy_stat$OOS_oR2, ltr_stat$OOS_oR2, ep_stat$OOS_oR2,
-           bm_stat$OOS_oR2, ik_stat$OOS_oR2, ntis_stat$OOS_oR2,
-           eqis_stat$OOS_oR2)
-OS_R2 <- round(OS_R2*100, 2)
+           bm_stat$OOS_oR2, ik_stat$OOS_oR2, ntis_stat$OOS_oR2)
 
 dRMSE <- c(dfy_stat$dRMSE, infl_stat$dRMSE, svar_stat$dRMSE,
            de_stat$dRMSE, lty_stat$dRMSE, tms_stat$dRMSE,
            tbl_stat$dRMSE, dfr_stat$dRMSE, dp_stat$dRMSE,
            dy_stat$dRMSE, ltr_stat$dRMSE, ep_stat$dRMSE,
-           bm_stat$dRMSE, ik_stat$dRMSE, ntis_stat$dRMSE,
-           eqis_stat$dRMSE)
-dRMSE <- round(dRMSE*100, 2)
-
-gw_table <- as.data.frame(cbind(Variable, IS_R2, OS_R2, dRMSE), row.names=F)
+           bm_stat$dRMSE, ik_stat$dRMSE, ntis_stat$dRMSE)
 }
-#Table including both IS and OS R2, as well as change in RMSE
-print(gw_table)
 
-#Kitchen Sink Model
+################################################################################
+#Stargazer Output
+#Table 1: Univariate Forecast Results
 
-###############################################################################
-#Forecasting with different models
-
-#Subset data into training and test - use later
-#train <- subset(ts_annual, start = 2, end = 120)
-#test <- subset(ts_annual, start = 121, end = 151)
-
-#Models on annual data (basic for now just to familiarize myself with the syntax & graphs)
-an_rp_div <- ts_annual[,"rp_div"]
-an_rp_div <- na.omit(an_rp_div)
-#Stationarity of TS test
-adf.test(an_rp_div) #p-val is < 0.01, series is stationary
-
-#Training set - years 1873 - 2010 (may adjust time-frame)
-train_rp_div <- subset(an_rp_div, start = 2, end = 139)
-
-#Naive Model
-fc_naive <- naive(train_rp_div, h = 11)
-summary(fc_naive)
-checkresiduals(fc_naive) #p-val: 2.013e-06
-autoplot(forecast(fc_naive))
-accuracy(fc_naive, an_rp_div)
-
-#Simple Exponential Smoothing
-fc_ses <- ses(train_rp_div, h = 11)
-summary(fc_ses)
-checkresiduals(fc_ses) #p-val: 0.03578
-autoplot(forecast(fc_ses))
-accuracy(fc_ses, an_rp_div)
-
-#Holt Model
-fc_holt <- holt(train_rp_div, h = 11)
-summary(fc_holt)
-checkresiduals(fc_holt) #p-val: 0.0121
-autoplot(forecast(fc_holt))
-accuracy(fc_holt, an_rp_div)
-
-#ARIMA Model
-fc_arima <- auto.arima(train_rp_div)
-summary(fc_arima)
-checkresiduals(fc_arima) #p-val: 0.05718, ARIMA(0,0,0)
-autoplot(forecast(fc_arima, h = 11))
-accuracy(fc_arima, an_rp_div) #Doesn't work since auto.arima doesn't return a class type "forecast". Working on fix.
-
-#TBATS Model
-fc_tbats <- tbats(train_rp_div)
-summary(fc_tbats)
-checkresiduals(fc_tbats) #p-val: 0.03516
-autoplot(forecast(fc_tbats, h = 11))
-accuracy(fc_tbats, an_rp_div) #Doesn't work since tbats() returns a class type "bats". Working on fix
-
-#
-
-
+table1 <- data.frame(Variable, IS.R2 = IS_R2, OS.R2 = OS_R2, dRMSE)
+stargazer(table1, summary = F, title = "Table 1: Univariate Forecast Results",
+          align = T, digits = 4, no.space = T, flip = F, type = "text", rownames = F, out = "table1.txt")
