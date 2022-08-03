@@ -310,40 +310,40 @@ assets <- assets[,c("CRSP_SPvw", "Rfree")]
 
 #Model returns
 #If equity premium is positive, invest in market index. If negative, invest in risk-free asset
-pm_1_returns <- ifelse(pm_pred_test_1 > 0, assets$CRSP_SPvw, assets$Rfree)
+pm_1_returns <- ifelse(pm_pred_test_1 > -0.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_pm_1 <- mean(pm_1_returns) #calculate mena of returns over time period
 
-pm_2_returns <- ifelse(pm_pred_test_2 > 0, assets$CRSP_SPv, assets$Rfree)
+pm_2_returns <- ifelse(pm_pred_test_2 > -0.01, assets$CRSP_SPv, assets$Rfree)
 mean_returns_pm_2 <- mean(pm_2_returns)
 
-pm_3_returns <- ifelse(pm_pred_test_3 > 0, assets$CRSP_SPvw, assets$Rfree)
+pm_3_returns <- ifelse(pm_pred_test_3 > -0.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_pm_3 <- mean(pm_3_returns)
 
-ks_1_model_returns <- ifelse(ks_reg47_pred_eqprem > 0, assets$CRSP_SPvw, assets$Rfree)
+ks_1_model_returns <- ifelse(ks_reg47_pred_eqprem > -0.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_ks_1 <- mean(ks_1_model_returns)
 
-ks_2_model_returns <- ifelse(ks_reg90_pred_eqprem > 0, assets$CRSP_SPvw, assets$Rfree)
+ks_2_model_returns <- ifelse(ks_reg90_pred_eqprem > -0.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_ks_2 <- mean(ks_2_model_returns)
 
-ks_3_model_returns <- ifelse(ks_reg00_pred_eqprem > 0, assets$CRSP_SPvw, assets$Rfree)
+ks_3_model_returns <- ifelse(ks_reg00_pred_eqprem > -.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_ks_3 <-mean(ks_3_model_returns)
 
-BAC_returns_1 <- ifelse(best_auto_combination_1$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
+BAC_returns_1 <- ifelse(best_auto_combination_1$Forecasts_Test > -.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_BAC_1 <- mean(BAC_returns_1)
 
-BAC_returns_2 <- ifelse(best_auto_combination_2$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
+BAC_returns_2 <- ifelse(best_auto_combination_2$Forecasts_Test > -.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_BAC_2 <- mean(BAC_returns_2)
 
-BAC_returns_3 <- ifelse(best_auto_combination_3$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
+BAC_returns_3 <- ifelse(best_auto_combination_3$Forecasts_Test > -.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_BAC_3 <- mean(BAC_returns_3)
 
-BG_returns_1 <- ifelse(BG_combo_1$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
+BG_returns_1 <- ifelse(BG_combo_1$Forecasts_Test > -.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_BG_1 <- mean(BG_returns_1)
 
-BG_returns_2 <- ifelse(BG_combo_2$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
+BG_returns_2 <- ifelse(BG_combo_2$Forecasts_Test > -.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_BG_2 <- mean(BG_returns_2)
 
-BG_returns_3 <- ifelse(BG_combo_2$Forecasts_Test > 0, assets$CRSP_SPvw, assets$Rfree)
+BG_returns_3 <- ifelse(BG_combo_2$Forecasts_Test > -0.01, assets$CRSP_SPvw, assets$Rfree)
 mean_returns_BG_3 <- mean(BG_returns_3)
 
 #Sharpe Ratios
@@ -443,3 +443,14 @@ stargazer(table3, summary = F, title = "Table 3: Model Results, Training Period 
 table4 <- data.frame(Model = models, IS.R2 = model3_IS_R2, OS.R2 = model3_OS_R2, RMSE = model3_RMSE, dRMSE = model3_dRMSE, Sharpe = model3_sharpe)
 stargazer(table4, summary = F, title = "Table 4: Model Results, Training Period 2000 - 2018",
           align = T, digits = 4, no.space = T, flip = F, type = "text", rownames = F, out = "table4.txt")
+
+#Table 5: Adjusted Threshold for Sharpe Ratios
+models2 <- c("Kitchen Sink (1)", "Kitchen Sink (2)", "Kitchen Sink (3)",
+             "Best Fit (1)", "Best Fit (2)", "Best Fit (3)",
+             "Bates/Granger (1)", "Bates/Granger (2)", "Bates/Granger (3)")
+sharpes <- c(ks_1_sharpe, ks_2_sharpe, ks_3_sharpe, 
+             BAC_1_sharpe, BAC_2_sharpe, BAC_3_sharpe,
+             BG_1_sharpe, BG_2_sharpe, BG_3_sharpe)
+table5 <- data.frame(Model = models2, Sharpe = sharpes)
+stargazer(table5, summary = F, title = "Table 5: Adjusted Threshold for Sharpe Ratios",
+          align = T, digits = 4, no.space = T, flip = F, type = "text", rownames = F, out = "table5.txt")
