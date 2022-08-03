@@ -197,7 +197,7 @@ dRMSE_ks_reg00 <- dRMSE(pm_3_errors, ks_reg00_errors)
 
 ks_3_IS_R2 <- postResample(ks_reg00$fitted.values, train_3$eqprem)[2]
 ks_reg00_R2 <- R2(pm_3_errors, ks_reg00_errors)
-##################################################################################
+################################################################################
 #Combination Forecasts
 #Combination Forecast 1: 1947 - 2018 training
 train_1_ts <- ts(train_1, start = c(1947, 2), end = c(2018, 4), frequency = 4) #Subset training data to be from 1947:2-2018:4
@@ -454,3 +454,7 @@ sharpes <- c(ks_1_sharpe, ks_2_sharpe, ks_3_sharpe,
 table5 <- data.frame(Model = models2, Sharpe = sharpes)
 stargazer(table5, summary = F, title = "Table 5: Adjusted Threshold for Sharpe Ratios",
           align = T, digits = 4, no.space = T, flip = F, type = "text", rownames = F, out = "table5.txt")
+
+#Table 6: KS regressions
+stargazer(ks_reg47, ks_reg90, ks_reg00, type = "text", title = "Table 6: Kitchen Sink Regressions",
+          column.labels = c("Period 1", "Period 2", "Period 3"), no.space = T, out = "table6.txt")
