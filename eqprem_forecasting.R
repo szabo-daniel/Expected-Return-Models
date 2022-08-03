@@ -169,7 +169,7 @@ ks_reg47_errors <- test$eqprem - ks_reg47_pred_eqprem #Calculate difference betw
 RMSE_ks_reg47 <- sqrt(mean(ks_reg47_errors^2)) #calculate RMSE using error values
 dRMSE_ks_reg47 <- dRMSE(pm_1_errors, ks_reg47_errors)
 
-#ks_reg47_R2 <- r2(test$eqprem, ks_reg47_pred_eqprem) #Calculate OS R2 value for regression
+ks_1_IS_R2 <- postResample(ks_reg47$fitted.values, train_1$eqprem)[2]
 ks_reg47_R2 <- R2(pm_1_errors, ks_reg47_errors)
 
 #Regression 2: 1990 - 2021
@@ -182,7 +182,7 @@ ks_reg90_errors <- test$eqprem - ks_reg90_pred_eqprem
 RMSE_ks_reg90 <- sqrt(mean(ks_reg90_errors^2))
 dRMSE_ks_reg90 <- dRMSE(pm_2_errors, ks_reg90_errors)
 
-#ks_reg90_R2 <- r2(test$eqprem, ks_reg90_pred_eqprem)
+ks_2_IS_R2 <- postResample(ks_reg90$fitted.values, train_2$eqprem)[2]
 ks_reg90_R2 <- R2(pm_2_errors, ks_reg90_errors)
 
 #Regression 3: 2000 - 2021
@@ -195,6 +195,7 @@ ks_reg00_errors <- test$eqprem - ks_reg00_pred_eqprem
 RMSE_ks_reg00 <- sqrt(mean(ks_reg00_errors^2))
 dRMSE_ks_reg00 <- dRMSE(pm_3_errors, ks_reg00_errors)
 
+ks_3_IS_R2 <- postResample(ks_reg00$fitted.values, train_3$eqprem)[2]
 ks_reg00_R2 <- R2(pm_3_errors, ks_reg00_errors)
 ##################################################################################
 #Combination Forecasts
@@ -221,8 +222,10 @@ best_auto_combination_1 <- auto_combine(combo_forecast_1, criterion = "RMSE")
 #Compute errors
 BAC_1_errors <- test$eqprem - best_auto_combination_1$Forecasts_Test
 
+#Compute in-sample R2
+BAC_1_IS_R2 <- postResample(best_auto_combination_1$Fitted, train_1$eqprem)[2]
+
 #Compute out-of-sample R2
-#BAC_R2_1 <- r2(test$eqprem, best_auto_combination_1$Forecasts_Test)
 BAC_1_R2 <- R2(pm_1_errors, BAC_1_errors)
 
 #Compute RMSE
@@ -243,9 +246,10 @@ test_obs_2 <- test_ts[,"eqprem"]
 combo_forecast_2 <- foreccomb(train_obs_2, train_pred_2, test_obs_2, test_pred_2, criterion = "RMSE")
 
 best_auto_combination_2 <- auto_combine(combo_forecast_2, criterion = "RMSE")
-#BAC_R2_2 <- r2(test$eqprem, best_auto_combination_2$Forecasts_Test)
+
 BAC_2_errors <- test$eqprem - best_auto_combination_2$Forecasts_Test
 
+BAC_2_IS_R2 <- postResample(best_auto_combination_2$Fitted, train_2$eqprem)[2]
 BAC_2_R2 <- R2(pm_2_errors, BAC_2_errors)
 
 RMSE_BAC_2 <- best_auto_combination_2$Accuracy_Test[2]
@@ -266,7 +270,8 @@ combo_forecast_3 <- foreccomb(train_obs_3, train_pred_3, test_obs_3, test_pred_3
 best_auto_combination_3 <- auto_combine(combo_forecast_3, criterion = "RMSE")
 
 BAC_3_errors <- test$eqprem - best_auto_combination_3$Forecasts_Test
-#BAC_R2_3 <- r2(test$eqprem, best_auto_combination_3$Forecasts_Test)
+
+BAC_3_IS_R2 <- postResample(train_3$eqprem, best_auto_combination_3$Fitted)[2]
 BAC_3_R2 <- R2(pm_3_errors, BAC_3_errors)
 
 RMSE_BAC_3 <- best_auto_combination_3$Accuracy_Test[2]
@@ -281,6 +286,10 @@ BG_combo_3 <- comb_BG(combo_forecast_3)
 BG_1_errors <- test$eqprem - BG_combo_1$Forecasts_Test
 BG_2_errors <- test$eqprem - BG_combo_2$Forecasts_Test
 BG_3_errors <- test$eqprem - BG_combo_3$Forecasts_Test
+
+BG_1_IS_R2 <- postResample(train_1$eqprem, BG_combo_1$Fitted)[2]
+BG_2_IS_R2 <- postResample(train_2$eqprem, BG_combo_2$Fitted)[2]
+BG_3_IS_R2 <- postResample(train_3$eqprem, BG_combo_3$Fitted)[2]
 
 BG_1_R2 <- R2(pm_1_errors, BG_1_errors)
 BG_2_R2 <- R2(pm_2_errors, BG_2_errors)
@@ -400,16 +409,19 @@ write.csv(eqprem_predictions, "paper_trading.csv", row.names = F)
 #Create variables to store result outputs
 models <- c("Kitchen Sink", "Best Fit Combination", "Bates/Granger Combination")
 
+model1_IS_R2 <- c(ks_1_IS_R2, BAC_1_IS_R2, BG_1_IS_R2)
 model1_OS_R2 <- c(ks_reg47_R2, BAC_1_R2, BG_1_R2)
 model1_RMSE <- c(RMSE_ks_reg47, RMSE_BAC_1, BG_1_RMSE)
 model1_dRMSE <- c(dRMSE_ks_reg47, dRMSE_BAC_1, dRMSE_BG_1)
 model1_sharpe <- c(ks_1_sharpe, BAC_1_sharpe, BG_1_sharpe)
 
+model2_IS_R2 <- c(ks_2_IS_R2, BAC_2_IS_R2, BG_1_IS_R2)
 model2_OS_R2 <- c(ks_reg90_R2, BAC_2_R2, BG_2_R2)
 model2_RMSE <- c(RMSE_ks_reg90, RMSE_BAC_2, BG_2_RMSE)
 model2_dRMSE <- c(dRMSE_ks_reg90, dRMSE_BAC_2, dRMSE_BG_2)
 model2_sharpe <- c(ks_2_sharpe, BAC_2_sharpe, BG_2_sharpe)
 
+model3_IS_R2 <- c(ks_3_IS_R2, BAC_3_IS_R2, BG_3_IS_R2)
 model3_OS_R2 <- c(ks_reg00_R2, BAC_3_R2, BG_3_R2)
 model3_RMSE <- c(RMSE_ks_reg00, RMSE_BAC_3, BG_3_RMSE)
 model3_dRMSE <- c(dRMSE_ks_reg00, dRMSE_BAC_3, dRMSE_BG_3)
@@ -418,16 +430,16 @@ model3_sharpe <- c(ks_3_sharpe, BAC_3_sharpe, BG_3_sharpe)
 #Table 1: in return_forecasting_gw.R
 
 #Table 2: First period: 1947 - 2018 training
-table2 <- data.frame(Model = models, OS.R2 = model1_OS_R2, RMSE = model1_RMSE, dRMSE = model1_dRMSE, Sharpe = model1_sharpe)
+table2 <- data.frame(Model = models, IS.R2 = model1_IS_R2, OS.R2 = model1_OS_R2, RMSE = model1_RMSE, dRMSE = model1_dRMSE, Sharpe = model1_sharpe)
 stargazer(table2, summary = F, title = "Table 2: Model Results, Training Period 1947 - 2018",
           align = T, digits = 4, no.space = T, flip = F, type = "text", rownames = F, out = "table2.txt")
 
 #Table 3: Second period: 1990 - 2018 training 
-table3 <- data.frame(Model = models, OS.R2 = model2_OS_R2, RMSE = model2_RMSE, dRMSE = model2_dRMSE, Sharpe = model2_sharpe)
+table3 <- data.frame(Model = models, IS.R2 = model2_IS_R2, OS.R2 = model2_OS_R2, RMSE = model2_RMSE, dRMSE = model2_dRMSE, Sharpe = model2_sharpe)
 stargazer(table3, summary = F, title = "Table 3: Model Results, Training Period 1990 - 2018",
           align = T, digits = 4, no.space = T, flip = F, type = "text", rownames = F, out = "table3.txt")
 
 #Table 4: Third period: 2000 - 2018 training
-table4 <- data.frame(Model = models, OS.R2 = model3_OS_R2, RMSE = model3_RMSE, dRMSE = model3_dRMSE, Sharpe = model3_sharpe)
+table4 <- data.frame(Model = models, IS.R2 = model3_IS_R2, OS.R2 = model3_OS_R2, RMSE = model3_RMSE, dRMSE = model3_dRMSE, Sharpe = model3_sharpe)
 stargazer(table4, summary = F, title = "Table 4: Model Results, Training Period 2000 - 2018",
           align = T, digits = 4, no.space = T, flip = F, type = "text", rownames = F, out = "table4.txt")
