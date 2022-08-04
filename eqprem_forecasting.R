@@ -457,4 +457,10 @@ stargazer(table5, summary = F, title = "Table 5: Adjusted Threshold for Sharpe R
 
 #Table 6: KS regressions
 stargazer(ks_reg47, ks_reg90, ks_reg00, type = "text", title = "Table 6: Kitchen Sink Regressions",
-          column.labels = c("Period 1", "Period 2", "Period 3"), no.space = T, out = "table6.txt")
+          column.labels = c("1947-2018", "1990-2018", "2000-2018"), no.space = T, out = "table6.txt")
+
+corrplot(cor(reg90_data))
+cor(reg47_data)
+
+#Table 7: Correlation Matrix
+stargazer(cor(reg_data[,-c("yearq")]), title = "Table 7: Correlation Matrix", type = "text", out = "table7.txt")
