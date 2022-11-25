@@ -142,7 +142,7 @@ for (i in seq(1, nrow(all_reg_1))) {
   pm_pred_1[i] <- mean(all_reg_1$eqprem[1:i-1]) #Insert equity premium prediction based on mean of previous equity premiums
 }
 pm_pred_test_1 <- tail(pm_pred_1, nrow(test)) #Last 12 variables represent our "test" data to compare with other models
-pm_1_R2 <- r2(test$eqprem, pm_pred_test_1) #Calculate R2 metric for model
+pm_1_R2 <- R2(test$eqprem, pm_pred_test_1) #Calculate R2 metric for model
 pm_1_errors <- test$eqprem - pm_pred_test_1
 
 for (i in seq(1, nrow(all_reg_2))){
