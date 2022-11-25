@@ -16,7 +16,7 @@ library(xts)
 library(stargazer)
 
 #Import data (quarterly GW data updated thru 2021)
-qdata <- fread("PredictorData2021 - Quarterly.csv", na.strings = "NaN")
+qdata <- fread("PredictorData2021Quarterly.csv", na.strings = "NaN")
 qdata$Index <- as.numeric(gsub(",","", qdata$Index))
 
 #Convert variable names to more consistent/readable form
