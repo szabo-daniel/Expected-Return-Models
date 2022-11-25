@@ -67,7 +67,7 @@ qdata$eqprem <- qdata$logReturnsDiv - qdata$logRfree
 #Transform qdata into a time series object for future use
 ts_data <- ts(qdata)
 ts_data_dt <- data.table(ts_data)
-   
+
 ##################################################################################
 R2 <- function(hist_errors, model_errors){
   1 - mean(hist_errors^2)/mean(model_errors^2)
@@ -149,14 +149,14 @@ for (i in seq(1, nrow(all_reg_2))){
   pm_pred_2[i] <- mean(all_reg_2$eqprem[1:i-1])
 }
 pm_pred_test_2 <- tail(pm_pred_2, nrow(test))
-pm_2_R2 <- r2(test$eqprem, pm_pred_test_2)
+pm_2_R2 <- R2(test$eqprem, pm_pred_test_2)
 pm_2_errors <- test$eqprem - pm_pred_test_2
 
 for (i in seq(1, nrow(all_reg_3))){
   pm_pred_3[i] <- mean(all_reg_3$eqprem[1:i-1])
 }
 pm_pred_test_3 <- tail(pm_pred_3, nrow(test))
-pm_3_R2 <- r2(test$eqprem, pm_pred_test_3)
+pm_3_R2 <- R2(test$eqprem, pm_pred_test_3)
 pm_3_errors <- test$eqprem - pm_pred_test_3
 
 #Regression 1: 1947 - 2021 
